@@ -349,6 +349,10 @@ main.iris-shell.workspace-open[data-workspace-tab="settings"] .interventions-vie
 .pepper-ghost-scene-n3 .pepper-ghost-directional-eye { width: clamp(72px, 7vw, 84px); }
 .pepper-ghost-scene-n2 .pepper-ghost-gaze-marker,
 .pepper-ghost-scene-n3 .pepper-ghost-gaze-marker { width: 22%; box-shadow: 0 0 18px 6px #56d6ffb3, 0 0 44px 14px #21bfff66; animation: pepper-pyramid-beacon 1.8s ease-in-out infinite; }
+.pepper-ghost-scene-idle .pepper-ghost-signals .pepper-ghost-signal-dot { width: clamp(58px, 8vmin, 84px); height: clamp(58px, 8vmin, 84px); box-shadow: 0 0 38px 18px #71d8ffbd, 0 0 90px 30px #39bfff55; animation: pepper-pyramid-beacon 2s ease-in-out infinite; }
+.pepper-ghost-scene-idle .pepper-ghost-signal-east { animation-delay: .5s; }
+.pepper-ghost-scene-idle .pepper-ghost-signal-south { animation-delay: 1s; }
+.pepper-ghost-scene-idle .pepper-ghost-signal-west { animation-delay: 1.5s; }
 .pepper-ghost-face-east .pepper-ghost-gaze-marker { animation-delay: .45s; }
 .pepper-ghost-face-south .pepper-ghost-gaze-marker { animation-delay: .9s; }
 .pepper-ghost-face-west .pepper-ghost-gaze-marker { animation-delay: 1.35s; }
@@ -455,3 +459,4 @@ main.iris-shell.workspace-open[data-workspace-tab="settings"] .interventions-vie
     height: clamp(48px, 14vw, 62px);
   }
 }
+@media(prefers-reduced-motion:reduce){.pepper-ghost-scene-idle .pepper-ghost-signal-dot,.pepper-ghost-gaze-marker{animation:none!important}}
