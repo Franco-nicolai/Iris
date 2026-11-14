@@ -7,7 +7,7 @@ export type VentanaCelesteDiagnostic = { configured: boolean; reachable: boolean
 export interface ExternalKnowledgeSource { testConnection(): Promise<{ status: ExternalKnowledgeSourceStatus; message: string }>; listAvailableContent(): Promise<ExternalKnowledgeRecord[]>; importContent(items: ExternalKnowledgeRecord[]): Promise<{ imported: number; updated: number; duplicates: number; errors: string[] }> }
 type VentanaCelesteConfig = { baseUrl: string; endpointPath?: string; clientId?: string; clientSecret?: string }
 
-function sourceUrl(config?: VentanaCelesteConfig | null) { return config !== undefined ? (config ? new URL(config.endpointPath || '/', config.baseUrl).toString() : '') : process.env.VENTANA_CELESTE_KB_URL?.trim() || '' }
+function sourceUrl(config?: VentanaCelesteConfig | null) { return config !== undefined ? (config ? new URL(config.endpointPath || '/', config.baseUrl).toString() : '') : (process.env.VENTANA_CELESTE_KB_URL || process.env.VENTANA_CELESTE_API_URL)?.trim() || '' }
 function safeError(error: unknown) { if (error instanceof Error && error.message.startsWith('http_')) return 'No se pudo conectar con Ventana Celeste.'; if (error instanceof Error && error.name === 'ZodError') return 'Ventana Celeste respondió, pero el contenido no cumple el formato esperado.'; return 'No se pudo consultar Ventana Celeste.' }
 function parsePayload(raw: string, contentType: string | null): unknown {
   try { return JSON.parse(raw) } catch {
