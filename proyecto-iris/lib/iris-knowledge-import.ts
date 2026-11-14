@@ -122,7 +122,10 @@ export function parseVentanaCelesteImport(raw: unknown): ParsedExternalKnowledge
   // Sources commonly wrap the same payload in multiple API envelopes.
   for (let depth = 0; depth < 4 && unwrapped && typeof unwrapped === 'object' && !Array.isArray(unwrapped); depth += 1) {
     const record = unwrapped as Record<string, unknown>
-    const envelope = ['data', 'results', 'knowledge', 'items', 'records', 'documents'].find((key) => record[key] !== undefined)
+    const envelopes = ['data', 'results', 'knowledge', 'items', 'records', 'documents']
+    const metadata = new Set(['meta', 'metadata', 'success', 'status', 'count', 'total', 'version', 'updated', 'timestamp', 'errors'])
+    const isEnvelope = Object.keys(record).every((key) => envelopes.includes(key) || metadata.has(key))
+    const envelope = isEnvelope ? envelopes.find((key) => record[key] !== undefined) : undefined
     if (!envelope) break
     unwrapped = record[envelope]
   }
