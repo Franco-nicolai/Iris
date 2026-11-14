@@ -1,0 +1,7 @@
+.DS_Store
+proyecto-iris/.env
+proyecto-iris/.env.*
+!proyecto-iris/.env.example
+proyecto-iris/node_modules/
+proyecto-iris/.next/
+proyecto-iris/.vercel/
