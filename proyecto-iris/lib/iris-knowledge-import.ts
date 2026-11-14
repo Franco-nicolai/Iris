@@ -89,9 +89,24 @@ function prepareExternalItems(raw: unknown): unknown {
 }
 
 export function parseVentanaCelesteImport(raw: unknown): ParsedExternalKnowledge[] {
-  if (raw && typeof raw === 'object' && !Array.isArray(raw)) { const value = raw as Record<string, unknown>; const grouped = Object.values(value).filter(Array.isArray).flat() as unknown[]; const recognized = new Set(['items', 'decisions', 'tasks', 'agreements', 'context', 'minutes', 'notes', 'open_questions']); const hasUnknownKey = Object.keys(value).some((key) => !recognized.has(key)); const needsStructure = hasUnknownKey || grouped.some((item) => !item || typeof item !== 'object' || !('title' in item) || !('content' in item)); if (needsStructure) return parseVentanaCelesteImport({ items: structuredItems(value) }) }
   const parsed = typeof raw === 'string' ? JSON.parse(raw) : raw
-  const unwrapped = parsed && typeof parsed === 'object' && !Array.isArray(parsed) ? ((parsed as Record<string, unknown>).data ?? (parsed as Record<string, unknown>).results ?? (parsed as Record<string, unknown>).knowledge ?? parsed) : parsed
+  let unwrapped: unknown = parsed
+  // Sources commonly wrap the same payload in multiple API envelopes.
+  for (let depth = 0; depth < 4 && unwrapped && typeof unwrapped === 'object' && !Array.isArray(unwrapped); depth += 1) {
+    const record = unwrapped as Record<string, unknown>
+    const envelope = ['data', 'results', 'knowledge', 'items', 'records', 'documents'].find((key) => record[key] !== undefined)
+    if (!envelope) break
+    unwrapped = record[envelope]
+  }
+  // Preserve known collections, but turn unknown structured records into readable entries.
+  if (unwrapped && typeof unwrapped === 'object' && !Array.isArray(unwrapped)) {
+    const value = unwrapped as Record<string, unknown>
+    const recognized = new Set(['items', 'decisions', 'tasks', 'agreements', 'context', 'minutes', 'notes', 'open_questions'])
+    const grouped = Object.values(value).filter(Array.isArray).flat() as unknown[]
+    const hasUnknownKey = Object.keys(value).some((key) => !recognized.has(key))
+    const needsStructure = hasUnknownKey || grouped.some((item) => !item || typeof item !== 'object' || !('title' in item) || !('content' in item))
+    if (needsStructure && !grouped.length) unwrapped = { items: structuredItems(value) }
+  }
   const input = inputSchema.parse(prepareExternalItems(Array.isArray(unwrapped) ? { items: unwrapped } : unwrapped))
   const groups: ExternalKnowledge[] = [
     ...(input.items ?? []).map((item) => ({ ...item, type: item.type ?? 'note' as const })),

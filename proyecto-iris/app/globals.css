@@ -347,6 +347,30 @@ main.iris-shell.workspace-open[data-workspace-tab="settings"] .interventions-vie
 .pepper-ghost-scene-n2 .pepper-ghost-image, .pepper-ghost-scene-n3 .pepper-ghost-image { opacity: 1; mix-blend-mode: screen; animation: none !important; }
 .pepper-ghost-gaze-marker { position: absolute; z-index: 2; top: 35%; left: 50%; width: 9%; aspect-ratio: 1; border: 1px solid #d7faff; border-radius: 50%; background: radial-gradient(circle at 38% 35%, #ffffff 0 14%, #a5efff 28%, #21bfff 72%, #0786c5 100%); box-shadow: 0 0 12px #56d6ffb3; transform: translate(-50%, -50%); }
 .pepper-ghost-scene-n3 .pepper-ghost-directional-eye { width: clamp(72px, 7vw, 84px); }
+.pepper-ghost-scene-n1 .pepper-ghost-signals .pepper-ghost-signal-dot,
+.pepper-ghost-scene-n2 .pepper-ghost-face .pepper-ghost-signal-dot,
+.pepper-ghost-scene-n3 .pepper-ghost-face .pepper-ghost-signal-dot {
+  width: clamp(58px, 8vmin, 84px);
+  height: clamp(58px, 8vmin, 84px);
+  box-shadow: 0 0 38px 18px #71d8ffbd, 0 0 90px 30px #39bfff55;
+  animation: pepper-pyramid-beacon 2s ease-in-out infinite !important;
+}
+.pepper-ghost-scene-n1 .pepper-ghost-signal-north,
+.pepper-ghost-scene-n2 .pepper-ghost-face-north .pepper-ghost-signal-dot,
+.pepper-ghost-scene-n3 .pepper-ghost-face-north .pepper-ghost-signal-dot { animation-delay: 0s !important; }
+.pepper-ghost-scene-n1 .pepper-ghost-signal-east,
+.pepper-ghost-scene-n2 .pepper-ghost-face-east .pepper-ghost-signal-dot,
+.pepper-ghost-scene-n3 .pepper-ghost-face-east .pepper-ghost-signal-dot { animation-delay: .5s !important; }
+.pepper-ghost-scene-n1 .pepper-ghost-signal-south,
+.pepper-ghost-scene-n2 .pepper-ghost-face-south .pepper-ghost-signal-dot,
+.pepper-ghost-scene-n3 .pepper-ghost-face-south .pepper-ghost-signal-dot { animation-delay: 1s !important; }
+.pepper-ghost-scene-n1 .pepper-ghost-signal-west,
+.pepper-ghost-scene-n2 .pepper-ghost-face-west .pepper-ghost-signal-dot,
+.pepper-ghost-scene-n3 .pepper-ghost-face-west .pepper-ghost-signal-dot { animation-delay: 1.5s !important; }
+@keyframes pepper-pyramid-beacon {
+  0%, 100% { opacity: .76; transform: translate(-50%, -50%) scale(.82); }
+  50% { opacity: 1; transform: translate(-50%, -50%) scale(1.12); }
+}
 .pepper-ghost-face-copy { display: grid; align-content: center; gap: 4px; width: 100%; overflow: visible; padding: 5px; border: 1px solid #a8e3ff50; border-radius: 11px; background: #020710e8; box-shadow: 0 0 20px #42caff22; text-align: left; }
 .pepper-ghost-face-stage { display: grid; gap: 3px; min-width: 0; padding: 4px 6px; border-left: 1px solid #72d7ff99; border-radius: 0 5px 5px 0; background: #ffffff08; }
 .pepper-ghost-face-stage > span { display: block; color: #9ce7ff; font: 700 8px/1.2 Arial, sans-serif; letter-spacing: .08em; }
@@ -363,6 +387,9 @@ main.iris-shell.workspace-open[data-workspace-tab="settings"] .interventions-vie
   .pepper-ghost-face-projection { gap: 3px; }
   .pepper-ghost-directional-eye { width: clamp(42px, 14vw, 54px); }
   .pepper-ghost-scene-n3 .pepper-ghost-directional-eye { width: clamp(36px, 13vw, 52px); }
+  .pepper-ghost-scene-n1 .pepper-ghost-signals .pepper-ghost-signal-dot,
+  .pepper-ghost-scene-n2 .pepper-ghost-face .pepper-ghost-signal-dot,
+  .pepper-ghost-scene-n3 .pepper-ghost-face .pepper-ghost-signal-dot { width: clamp(38px, 10vw, 54px); height: clamp(38px, 10vw, 54px); box-shadow: 0 0 24px 11px #71d8ffbd, 0 0 48px 18px #39bfff55; }
   .pepper-ghost-face-copy { gap: 2px; padding: 3px; border-radius: 6px; }
   .pepper-ghost-face-stage { gap: 2px; padding: 2px 4px; border-radius: 6px; }
   .pepper-ghost-face-stage > span { font-size: 7px; }
