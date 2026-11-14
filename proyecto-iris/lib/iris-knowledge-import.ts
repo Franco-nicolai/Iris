@@ -37,9 +37,37 @@ function formatValue(value: unknown, depth = 0): string {
   if (typeof value === 'object') return Object.entries(value as Record<string, unknown>).map(([key, item]) => `${humanizeKey(key)}: ${formatValue(item, depth + 1)}`).join('\n')
   return String(value)
 }
+function inferExternalType(section: string): ExternalKnowledge['type'] {
+  const key = section.toLocaleLowerCase()
+  if (/decision|decisi[oó]n/.test(key)) return 'decision'
+  if (/commitment|agreement|acuerdo|compromiso/.test(key)) return 'agreement'
+  if (/task|tarea|pending|pendiente/.test(key)) return 'task'
+  if (/meeting|minute|reuni[oó]n|minuta|event/.test(key)) return 'minute'
+  if (/question|pregunta|issue|problema/.test(key)) return 'open_question'
+  if (/meta|context|project|proyecto|area|team|equipo|people|software|document|milestone|roadmap|plan/.test(key)) return 'context'
+  return 'other'
+}
+
+function structuredRecord(section: string, value: unknown, index?: number): ExternalKnowledge {
+  const record = value && typeof value === 'object' && !Array.isArray(value) ? value as Record<string, unknown> : null
+  const titleFields = ['title', 'name', 't', 'what', 'task', 'goal', 'subject', 'question', 'n', 'id']
+  const valueTitle = record && titleFields.map((key) => record[key]).find((field) => typeof field === 'string' && field.trim())
+  const sectionTitle = humanizeKey(section)
+  const title = typeof valueTitle === 'string' ? `${sectionTitle}: ${valueTitle}` : `${sectionTitle}${index === undefined ? '' : ` ${index + 1}`}`
+  const content = record ? formatValue(record) : formatValue(value)
+  const externalId = record?.externalId ?? record?.id
+  return {
+    title: title.slice(0, 240),
+    content: content.trim() || title,
+    type: inferExternalType(section),
+    ...(typeof externalId === 'string' || typeof externalId === 'number' ? { externalId: String(externalId).slice(0, 240) } : {}),
+  }
+}
+
 function structuredItems(raw: Record<string, unknown>): ExternalKnowledge[] {
-  const known = new Set(['project', 'context', 'areas', 'people', 'team', 'tasks', 'pending', 'decisions', 'agreements', 'meetings', 'minutes', 'milestones'])
-  return Object.entries(raw).map(([key, value]) => ({ title: humanizeKey(key), content: formatValue(value), type: known.has(key) ? (key === 'decisions' || key === 'agreements' ? 'decision' : key === 'tasks' || key === 'pending' ? 'task' : key === 'minutes' || key === 'meetings' ? 'minute' : 'context') : 'other' as const }))
+  return Object.entries(raw).flatMap(([key, value]) => Array.isArray(value)
+    ? value.map((item, index) => structuredRecord(key, item, index))
+    : [structuredRecord(key, value)])
 }
 
 function splitLongContent(content: string) {
@@ -99,13 +127,18 @@ export function parseVentanaCelesteImport(raw: unknown): ParsedExternalKnowledge
     unwrapped = record[envelope]
   }
   // Preserve known collections, but turn unknown structured records into readable entries.
+  if (Array.isArray(unwrapped)) {
+    const isCanonicalList = unwrapped.every((item) => item && typeof item === 'object' && !Array.isArray(item) && typeof (item as Record<string, unknown>).title === 'string' && typeof (item as Record<string, unknown>).content === 'string')
+    if (!isCanonicalList) unwrapped = { items: structuredItems({ records: unwrapped }) }
+  }
   if (unwrapped && typeof unwrapped === 'object' && !Array.isArray(unwrapped)) {
     const value = unwrapped as Record<string, unknown>
     const recognized = new Set(['items', 'decisions', 'tasks', 'agreements', 'context', 'minutes', 'notes', 'open_questions'])
     const grouped = Object.values(value).filter(Array.isArray).flat() as unknown[]
     const hasUnknownKey = Object.keys(value).some((key) => !recognized.has(key))
-    const needsStructure = hasUnknownKey || grouped.some((item) => !item || typeof item !== 'object' || !('title' in item) || !('content' in item))
-    if (needsStructure && !grouped.length) unwrapped = { items: structuredItems(value) }
+    const isCanonicalGroups = Object.entries(value).every(([key, items]) => recognized.has(key) && Array.isArray(items))
+      && grouped.every((item) => item && typeof item === 'object' && !Array.isArray(item) && typeof (item as Record<string, unknown>).title === 'string' && typeof (item as Record<string, unknown>).content === 'string')
+    if (!isCanonicalGroups && (hasUnknownKey || grouped.length > 0)) unwrapped = { items: structuredItems(value) }
   }
   const input = inputSchema.parse(prepareExternalItems(Array.isArray(unwrapped) ? { items: unwrapped } : unwrapped))
   const groups: ExternalKnowledge[] = [
