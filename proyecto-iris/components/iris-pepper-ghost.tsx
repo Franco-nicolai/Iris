@@ -2,11 +2,9 @@
 import type { PresentationLevel } from '@/components/iris-presentation'
 
 type Presentation = { level: PresentationLevel; content: string; visualState: string } | null
-type PresentationLayer = { level: PresentationLevel; content: string }
-
 const faces = ['north', 'east', 'south', 'west'] as const
 
-export function IrisPepperGhost({ activePresentation, layers, muted, onClose }: { activePresentation: Presentation; layers: PresentationLayer[]; muted: boolean; onClose: () => void }) {
+export function IrisPepperGhost({ activePresentation, muted, onClose }: { activePresentation: Presentation; muted: boolean; onClose: () => void }) {
   const level = activePresentation?.level
   const message = activePresentation?.content.trim() || ''
 
@@ -17,10 +15,9 @@ export function IrisPepperGhost({ activePresentation, layers, muted, onClose }: 
         {faces.map((face) => <span className={`pepper-ghost-signal-dot pepper-ghost-signal-${face}`} key={face} />)}
       </div> : <div className={`pepper-ghost-faces pepper-ghost-pattern-${level}`} aria-hidden="true">
         {faces.map((face) => <div className={`pepper-ghost-face pepper-ghost-face-${face}`} key={face}>
-          <div className="pepper-ghost-face-projection">
+          <div className={`pepper-ghost-face-projection ${level > 1 ? 'has-message' : ''}`}>
             {level === 1 && <span className="pepper-ghost-orb" />}
-            {level === 2 && <div className="pepper-ghost-message-orb"><p>{message}</p></div>}
-            {level === 3 && <div className="pepper-ghost-message-projection"><p>{message}</p></div>}
+            {level > 1 && <p className="pepper-ghost-message-text">{message}</p>}
           </div>
         </div>)}
       </div>}

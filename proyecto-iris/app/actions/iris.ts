@@ -3,7 +3,7 @@
 import { db } from '@/lib/db'
 import { requireIrisUserId } from '@/lib/iris-session'
 import { decisions, interventions, knowledgeItems, meetingAgendaItems, meetings, meetingSummaries, suggestions, tasks, transcriptSegments } from '@/lib/db/schema'
-import { and, asc, desc, eq, ilike, or } from 'drizzle-orm'
+import { and, asc, desc, eq, ilike, inArray, or } from 'drizzle-orm'
 import { revalidatePath } from 'next/cache'
 import { z } from 'zod'
 import { analyzeMeetingForIntervention, answerIrisMeetingQuestion, detectionKey, extractIrisDetections, generateMeetingSummary, suggestMeetingAgenda } from '@/lib/iris-intelligence'
@@ -45,6 +45,22 @@ export async function getIrisAnalyticsAction(input: unknown) {
     db.select({ meetingId: decisions.meetingId, status: decisions.status, confirmedByUser: decisions.confirmedByUser }).from(decisions).where(and(eq(decisions.userId, userId), eq(decisions.meetingId, meetingId))),
     db.select({ meetingId: tasks.meetingId, status: tasks.status }).from(tasks).where(and(eq(tasks.userId, userId), eq(tasks.meetingId, meetingId))),
     db.select({ meetingId: meetingSummaries.meetingId, provider: meetingSummaries.provider, model: meetingSummaries.model, generatedAt: meetingSummaries.generatedAt }).from(meetingSummaries).where(and(eq(meetingSummaries.userId, userId), eq(meetingSummaries.meetingId, meetingId))),
+  ])
+  return { meetings: meetingRows, interventions: interventionRows, suggestions: suggestionRows, segments: segmentRows, decisions: decisionRows, tasks: taskRows, summaries: summaryRows }
+}
+
+export async function getIrisAnalyticsOverviewAction() {
+  const userId = await requireUserId()
+  const meetingRows = await db.select({ id: meetings.id, title: meetings.title, status: meetings.status, startedAt: meetings.startedAt, endedAt: meetings.endedAt }).from(meetings).where(eq(meetings.userId, userId)).orderBy(desc(meetings.startedAt)).limit(100)
+  const meetingIds = meetingRows.map((meeting) => meeting.id)
+  if (!meetingIds.length) return { meetings: meetingRows, interventions: [], suggestions: [], segments: [], decisions: [], tasks: [], summaries: [] }
+  const [interventionRows, suggestionRows, segmentRows, decisionRows, taskRows, summaryRows] = await Promise.all([
+    db.select({ id: interventions.id, meetingId: interventions.meetingId, level: interventions.level, type: interventions.type, reason: interventions.reason, content: interventions.content, observation: interventions.observation, status: interventions.status, source: interventions.source, createdAt: interventions.createdAt }).from(interventions).where(and(eq(interventions.userId, userId), inArray(interventions.meetingId, meetingIds))).orderBy(desc(interventions.createdAt)),
+    db.select({ meetingId: suggestions.meetingId, category: suggestions.category, status: suggestions.status }).from(suggestions).where(and(eq(suggestions.userId, userId), inArray(suggestions.meetingId, meetingIds))),
+    db.select({ meetingId: transcriptSegments.meetingId, startedAt: transcriptSegments.startedAt, endedAt: transcriptSegments.endedAt, isFinal: transcriptSegments.isFinal }).from(transcriptSegments).where(and(eq(transcriptSegments.userId, userId), inArray(transcriptSegments.meetingId, meetingIds))),
+    db.select({ meetingId: decisions.meetingId, status: decisions.status, confirmedByUser: decisions.confirmedByUser }).from(decisions).where(and(eq(decisions.userId, userId), inArray(decisions.meetingId, meetingIds))),
+    db.select({ meetingId: tasks.meetingId, status: tasks.status }).from(tasks).where(and(eq(tasks.userId, userId), inArray(tasks.meetingId, meetingIds))),
+    db.select({ meetingId: meetingSummaries.meetingId, provider: meetingSummaries.provider, model: meetingSummaries.model, generatedAt: meetingSummaries.generatedAt }).from(meetingSummaries).where(and(eq(meetingSummaries.userId, userId), inArray(meetingSummaries.meetingId, meetingIds))),
   ])
   return { meetings: meetingRows, interventions: interventionRows, suggestions: suggestionRows, segments: segmentRows, decisions: decisionRows, tasks: taskRows, summaries: summaryRows }
 }
@@ -198,7 +214,7 @@ export async function updateAgendaItem(input: unknown) {
 
 export async function createIntervention(input: unknown) {
   const userId = await requireUserId(); const data = interventionInput.parse(input); await assertMeeting(userId, data.meetingId)
-  await db.insert(interventions).values({ ...data, userId, status: 'active' }); revalidatePath('/'); return data.id
+  await db.insert(interventions).values({ ...data, userId, status: 'active' }).onConflictDoNothing({ target: interventions.id }); revalidatePath('/'); return data.id
 }
 
 export async function closeIntervention(input: unknown) {
