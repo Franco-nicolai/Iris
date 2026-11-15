@@ -233,7 +233,7 @@ export function IrisWorkspace({ user, meetings: initialMeetings }: { user: { nam
   const liveCaption = interimTranscript.trim() || liveFinalSegments.at(-1)?.text || ''
 
   useEffect(() => { sessionStateRef.current = session }, [session])
-  useEffect(() => { if (data.meeting) { setContextDraft({ objective: data.meeting.objective, contextNotes: data.meeting.contextNotes ?? '' }); if (newMeetingOpen && selected?.status === 'scheduled') setNewMeetingForm({ title: selected.title, objective: data.meeting.objective, contextNotes: data.meeting.contextNotes ?? '', agenda: data.agenda.slice().sort((a, b) => a.position - b.position).map((item) => item.title).join('\n') }) } }, [data.meeting, data.agenda, newMeetingOpen, selected])
+  useEffect(() => { if (data.meeting && newMeetingOpen && selected?.status === 'scheduled') setNewMeetingForm({ title: selected.title, objective: data.meeting.objective, contextNotes: data.meeting.contextNotes ?? '', agenda: data.agenda.slice().sort((a, b) => a.position - b.position).map((item) => item.title).join('\n') }) }, [data.meeting, data.agenda, newMeetingOpen, selected])
   useEffect(() => { if (!workspaceOpen && !selectedId && !newMeetingOpen) { setNewMeetingOpen(true); setPreMeetingStep(0) } }, [workspaceOpen, selectedId, newMeetingOpen])
   useEffect(() => {
     if (!newMeetingOpen) {
