@@ -242,7 +242,7 @@ export async function runCloudflareJsonRequest(input: { system: string; prompt: 
   const model = getCloudflareModel()
   if (!accountId || !apiToken) throw new IntelligenceProviderError('missing_credentials', 'Faltan credenciales de Cloudflare Workers AI.')
   const startedAt = Date.now()
-  const timeoutMs = getIrisAiTimeoutMs()
+  const timeoutMs = input.operation === 'direct_question' ? Math.min(getIrisAiTimeoutMs(), 12_000) : getIrisAiTimeoutMs()
   const controller = new AbortController()
   const abortForCaller = () => controller.abort()
   if (input.signal?.aborted) controller.abort()
