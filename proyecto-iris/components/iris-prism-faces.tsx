@@ -1,6 +1,7 @@
 'use client'
 
 import { useEffect, useRef, useState } from 'react'
+import { IrisOrbVisual } from '@/components/iris-orb-visual'
 
 export type IrisPrismLevel = 1 | 2 | 3
 
@@ -30,7 +31,7 @@ export function IrisPrismFaces({ level, message }: { level: IrisPrismLevel; mess
   return <div ref={facesRef} className={`iris-prism-faces iris-prism-level-${level}`} data-level={level} aria-hidden="true">
     {faces.map((face) => <div className={`iris-prism-face iris-prism-face-${face}`} key={face}>
       <div className="iris-prism-projection">
-        {level === 1 ? <span className="iris-prism-orb" /> : <div className="iris-prism-message"><p style={{ fontSize }}>{message}</p></div>}
+        <IrisOrbVisual className="prism-orb-visual" />{level > 1 && <div className="iris-prism-message"><p style={{ fontSize }}>{message}</p></div>}
       </div>
     </div>)}
   </div>
