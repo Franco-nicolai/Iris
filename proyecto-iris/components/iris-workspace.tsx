@@ -609,6 +609,16 @@ export function IrisWorkspace({ user, meetings: initialMeetings }: { user: { nam
       if (buffer.trim()) receiveStreamBlock(buffer)
       const finalResponse = streamedResponseRef.current
       if (!finalResponse) throw new Error('Iris terminó la respuesta sin un resultado validado.')
+      if (finalResponse.fallback) {
+        const message = 'La IA no pudo sintetizar una respuesta segura. No se mostró ni guardó una intervención.'
+        setDirectInvocation({ query: resolvedInvocation.query, status: 'error', latencyMs: Date.now() - startedAt, answer: message, spoken: false, presented: false })
+        clearPresentation('replaced')
+        setLiveAnalysisError(message)
+        setIrisVisualState(irisMutedRef.current ? 'muted' : 'listening')
+        if (!irisMutedRef.current) { window.speechSynthesis?.cancel(); queueIrisSpeechChunk('No pude responder con seguridad. No mostraré una respuesta incompleta.') }
+        addDiagnosticEvent('DIRECT ANSWER fallback discarded')
+        return
+      }
       const responseLatency = Date.now() - startedAt
       const suggestion = { shouldIntervene: true, level: 3 as const, type: 'generic' as const, reason: `Solicitud directa: ${resolvedInvocation.query}`, content: finalResponse.answer, confidence: finalResponse.confidence, evidence: finalResponse.evidence }
       const sourceLayer: ActivePresentation = { source: 'direct', level: 2, type: 'generic', content: finalResponse.answer, createdAt: new Date().toISOString(), visualState: 'interventionLevel2' }

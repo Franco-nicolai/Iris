@@ -1,6 +1,6 @@
 import { z } from 'zod'
 
-export const directIrisResponseSchema = z.object({ answer: z.string().trim().min(1).max(600), confidence: z.number().min(0).max(1), evidence: z.array(z.string().trim().min(1).max(300)).max(8) }).strict()
+export const directIrisResponseSchema = z.object({ answer: z.string().trim().min(1).max(600), confidence: z.number().min(0).max(1), evidence: z.array(z.string().trim().min(1).max(300)).max(8), fallback: z.boolean().optional() }).strict()
 export type DirectIrisResponse = z.infer<typeof directIrisResponseSchema>
 
 const wakeWord = /^(?:oye\s+)?iris\b[\s,:-]*/i
