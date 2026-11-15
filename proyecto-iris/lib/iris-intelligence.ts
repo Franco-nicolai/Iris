@@ -1,4 +1,4 @@
-import { and, asc, desc, eq, inArray } from 'drizzle-orm'
+import { and, asc, desc, eq, ilike, inArray, or } from 'drizzle-orm'
 import { db } from './db'
 import { decisions, interventions, knowledgeItems, meetingAgendaItems, meetingSummaries, meetings, tasks, transcriptSegments } from './db/schema'
 import { suggestedInterventionSchema, type SuggestedIntervention } from './iris-domain'
@@ -218,17 +218,24 @@ function buildFallbackAgenda(input: { title: string; objective: string; contextN
 }
 
 async function getRelevantPastMeetingRecords(userId: string, currentMeetingId: string, query: string) {
-  const previousMeetings = await db.select({ id: meetings.id, title: meetings.title, objective: meetings.objective }).from(meetings).where(eq(meetings.userId, userId)).orderBy(desc(meetings.startedAt)).limit(200)
+  const previousMeetings = await db.select({ id: meetings.id, title: meetings.title, objective: meetings.objective }).from(meetings).where(eq(meetings.userId, userId)).orderBy(desc(meetings.startedAt))
   const meetingRows = previousMeetings.filter((meeting) => meeting.id !== currentMeetingId)
   if (!meetingRows.length) return [] as Array<{ title: string; content: string }>
   const meetingIds = meetingRows.map((meeting) => meeting.id)
   const titles = new Map(meetingRows.map((meeting) => [meeting.id, meeting.title]))
+  const rawTranscriptTerms = query.toLocaleLowerCase().split(/[^a-záéíóúüñ0-9]+/).filter((term) => {
+    const normalized = term.normalize('NFD').replace(/[\u0300-\u036f]/g, '')
+    return normalized.length > 3 && !STOP_WORDS.has(normalized)
+  })
+  const transcriptSearchTerms = [...new Set([...terms(query), ...rawTranscriptTerms])].slice(0, 16)
+  const transcriptConditions = [eq(transcriptSegments.userId, userId), inArray(transcriptSegments.meetingId, meetingIds), eq(transcriptSegments.isFinal, true)]
+  const transcriptSearch = transcriptSearchTerms.length ? or(...transcriptSearchTerms.map((term) => ilike(transcriptSegments.text, `%${term}%`))) : undefined
   const [summaries, agenda, decisionsRows, taskRows, transcriptRows] = await Promise.all([
-    db.select({ meetingId: meetingSummaries.meetingId, summary: meetingSummaries.summary, topics: meetingSummaries.topics, keyPoints: meetingSummaries.keyPoints }).from(meetingSummaries).where(and(eq(meetingSummaries.userId, userId), inArray(meetingSummaries.meetingId, meetingIds))).orderBy(desc(meetingSummaries.updatedAt)).limit(500),
-    db.select({ meetingId: meetingAgendaItems.meetingId, title: meetingAgendaItems.title, note: meetingAgendaItems.note }).from(meetingAgendaItems).where(and(eq(meetingAgendaItems.userId, userId), inArray(meetingAgendaItems.meetingId, meetingIds))).orderBy(desc(meetingAgendaItems.position)).limit(1000),
-    db.select({ meetingId: decisions.meetingId, text: decisions.text, status: decisions.status }).from(decisions).where(and(eq(decisions.userId, userId), inArray(decisions.meetingId, meetingIds))).limit(1000),
-    db.select({ meetingId: tasks.meetingId, text: tasks.text, assignee: tasks.assignee, status: tasks.status }).from(tasks).where(and(eq(tasks.userId, userId), inArray(tasks.meetingId, meetingIds))).limit(1000),
-    db.select({ meetingId: transcriptSegments.meetingId, speaker: transcriptSegments.speaker, text: transcriptSegments.text }).from(transcriptSegments).where(and(eq(transcriptSegments.userId, userId), inArray(transcriptSegments.meetingId, meetingIds), eq(transcriptSegments.isFinal, true))).orderBy(desc(transcriptSegments.startedAt)).limit(3000),
+    db.select({ meetingId: meetingSummaries.meetingId, summary: meetingSummaries.summary, topics: meetingSummaries.topics, keyPoints: meetingSummaries.keyPoints }).from(meetingSummaries).where(and(eq(meetingSummaries.userId, userId), inArray(meetingSummaries.meetingId, meetingIds))).orderBy(desc(meetingSummaries.updatedAt)),
+    db.select({ meetingId: meetingAgendaItems.meetingId, title: meetingAgendaItems.title, note: meetingAgendaItems.note }).from(meetingAgendaItems).where(and(eq(meetingAgendaItems.userId, userId), inArray(meetingAgendaItems.meetingId, meetingIds))).orderBy(desc(meetingAgendaItems.position)),
+    db.select({ meetingId: decisions.meetingId, text: decisions.text, status: decisions.status }).from(decisions).where(and(eq(decisions.userId, userId), inArray(decisions.meetingId, meetingIds))),
+    db.select({ meetingId: tasks.meetingId, text: tasks.text, assignee: tasks.assignee, status: tasks.status }).from(tasks).where(and(eq(tasks.userId, userId), inArray(tasks.meetingId, meetingIds))),
+    db.select({ meetingId: transcriptSegments.meetingId, speaker: transcriptSegments.speaker, text: transcriptSegments.text }).from(transcriptSegments).where(and(...transcriptConditions, ...(transcriptSearch ? [transcriptSearch] : []))).orderBy(desc(transcriptSegments.startedAt)).limit(transcriptSearchTerms.length ? 500 : 3000),
   ])
   const candidates = [
     ...meetingRows.map((meeting) => ({ title: `Reunión anterior: ${meeting.title}`, content: meeting.objective ? `Objetivo: ${meeting.objective}` : '' })),
