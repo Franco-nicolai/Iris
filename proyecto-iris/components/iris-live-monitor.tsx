@@ -2,8 +2,7 @@
 
 import useSWR from 'swr'
 import { listMeetingData } from '@/app/actions/iris'
-
-const faces = ['north', 'east', 'south', 'west'] as const
+import { IrisPrismFaces } from '@/components/iris-prism-faces'
 
 export function IrisLiveMonitor({ meetingId }: { meetingId: string }) {
   const { data, error, isLoading, mutate } = useSWR(['iris-live-monitor', meetingId], () => listMeetingData(meetingId), { refreshInterval: 1200, revalidateOnFocus: true })
@@ -22,7 +21,7 @@ export function IrisLiveMonitor({ meetingId }: { meetingId: string }) {
     <div className="iris-remote-title"><h1>{data.meeting?.title || 'Reunión'}</h1><p>{activeAgenda?.title || 'Sin punto activo'}</p></div>
     <section className={`iris-remote-prism level-${level}`} aria-live="polite" aria-label="Interacción actual de Iris">
       <p className="sr-only">{currentMessage}</p>
-      <div className="iris-remote-faces" aria-hidden="true">{faces.map((face) => <div className={`iris-remote-face face-${face}`} key={face}><div className={`iris-remote-projection ${level > 1 ? 'has-message' : ''}`}>{level === 1 ? <span className="iris-remote-orb" /> : <p className="iris-remote-message-text">{currentMessage}</p>}</div></div>)}</div>
+      <IrisPrismFaces level={level} message={currentMessage} />
     </section>
     <footer className="iris-remote-footer"><span>{latestIntervention ? 'INTERACCIÓN DE IRIS' : 'ESCUCHANDO'}</span><p>{currentMessage}</p><small>Sincronización automática · última actualización {new Date().toLocaleTimeString('es-CL', { hour: '2-digit', minute: '2-digit', second: '2-digit' })}</small></footer>
   </main>
