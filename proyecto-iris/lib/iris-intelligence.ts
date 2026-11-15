@@ -333,8 +333,7 @@ export async function answerIrisMeetingQuestion(meetingId: string, userId: strin
     const source = bestSource && bestSource.score > 0 ? bestSource.record : undefined
     if (source) {
       const sourceTitle = source.title.slice(0, 120)
-      const excerpt = source.content.replace(/\s+/g, ' ').trim().slice(0, 300)
-      return { answer: `No pude sintetizarlo con el modelo ahora. Encontré este registro relacionado en “${sourceTitle}”: ${excerpt}`, confidence: 0.35, evidence: [sourceTitle.slice(0, 290)] }
+      return { answer: `Encontré información relacionada en “${sourceTitle}”, pero no pude sintetizarla con seguridad ahora. Repite la pregunta y lo intento de nuevo.`, confidence: 0.2, evidence: [sourceTitle.slice(0, 290)] }
     }
     return { answer: 'No pude generar una respuesta ahora y no encontré registros coincidentes en la reunión, Ventana Celeste ni el historial disponible.', confidence: 0, evidence: [] }
   }
