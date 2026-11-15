@@ -84,7 +84,6 @@ export function IrisWorkspace({ user, meetings: initialMeetings }: { user: { nam
   const presentIntervention = (source: ActivePresentation['source'], suggestion: SuggestedIntervention, visualState: IrisVisualState) => {
     const level = Math.max(1, Math.min(3, suggestion.level)) as 1 | 2 | 3
     const presentation: ActivePresentation = { source, level, content: suggestion.content, type: suggestion.type, createdAt: new Date().toISOString(), visualState }
-    if (source === 'ai' || source === 'direct') setPepperGhostOpen(true)
     if (activePresentation) { logPresentationEvent('PRESENTATION_CLEARED', activePresentation, 'replaced'); addDiagnosticEvent('PRESENTATION_CLEARED replaced') }
     setActivePresentation(presentation)
     setPyramidState((current) => {
@@ -645,18 +644,19 @@ export function IrisWorkspace({ user, meetings: initialMeetings }: { user: { nam
       if (buffer.trim()) receiveStreamBlock(buffer)
       const finalResponse = streamedResponseRef.current
       if (!finalResponse) throw new Error('Iris terminó la respuesta sin un resultado validado.')
-      if (finalResponse.fallback) {
-        const message = 'La IA no pudo sintetizar una respuesta segura. No se mostró ni guardó una intervención.'
+      const sourceBackedFallback = Boolean(finalResponse.fallback && finalResponse.confidence >= 0.55 && finalResponse.evidence.length && finalResponse.answer.trim())
+      if (finalResponse.fallback && !sourceBackedFallback) {
+        const message = finalResponse.answer || 'No encontré una respuesta respaldada en las fuentes consultadas.'
         setDirectInvocation({ query: resolvedInvocation.query, status: 'error', latencyMs: Date.now() - startedAt, answer: message, spoken: false, presented: false })
         clearPresentation('replaced')
         setLiveAnalysisError(message)
         setIrisVisualState(irisMutedRef.current ? 'muted' : 'listening')
-        if (!irisMutedRef.current) { window.speechSynthesis?.cancel(); queueIrisSpeechChunk('No pude responder con seguridad. No mostraré una respuesta incompleta.') }
-        addDiagnosticEvent('DIRECT ANSWER fallback discarded')
+        if (!irisMutedRef.current) { window.speechSynthesis?.cancel(); queueIrisSpeechChunk(message) }
+        addDiagnosticEvent('DIRECT ANSWER fallback had no matching evidence')
         return
       }
       const responseLatency = Date.now() - startedAt
-      const suggestion = { shouldIntervene: true, level: 3 as const, type: 'generic' as const, reason: `Solicitud directa: ${resolvedInvocation.query}${finalResponse.evidence.length ? ` · Fuentes consultadas: ${finalResponse.evidence.slice(0, 4).map((source) => source.trim().slice(0, 120)).join(' | ')}` : ''}`, content: finalResponse.answer, confidence: finalResponse.confidence, evidence: finalResponse.evidence }
+      const suggestion = { shouldIntervene: true, level: 3 as const, type: 'generic' as const, reason: `${sourceBackedFallback ? 'Respuesta extraída de fuentes coincidentes; Cloudflare no pudo sintetizarla. ' : ''}Solicitud directa: ${resolvedInvocation.query}${finalResponse.evidence.length ? ` · Fuentes consultadas: ${finalResponse.evidence.slice(0, 4).map((source) => source.trim().slice(0, 120)).join(' | ')}` : ''}`, content: finalResponse.answer, confidence: finalResponse.confidence, evidence: finalResponse.evidence }
       const sourceLayer: ActivePresentation = { source: 'direct', level: 2, type: 'generic', content: finalResponse.answer, createdAt: new Date().toISOString(), visualState: 'interventionLevel2' }
       setPyramidState((current) => ({ ...current, layers: [...current.layers.filter((layer) => layer.level < 2), sourceLayer], speechContent: null }))
       const message = { ...suggestion, level: 2 as const }
@@ -669,7 +669,7 @@ export function IrisWorkspace({ user, meetings: initialMeetings }: { user: { nam
       }, 1300)
       setDirectInvocation({ query: resolvedInvocation.query, status: 'success', latencyMs: responseLatency, answer: finalResponse.answer, spoken: !irisMutedRef.current, presented: true })
       armFollowUp(resolvedInvocation.query, finalResponse.answer)
-      addDiagnosticEvent(`DIRECT ANSWER presented level=2 → 3 spoken=${!irisMutedRef.current}`)
+      addDiagnosticEvent(`DIRECT ANSWER ${sourceBackedFallback ? 'source excerpt' : 'model'} presented level=2 → 3 spoken=${!irisMutedRef.current}`)
       if (process.env.NODE_ENV !== 'production') console.log('[v0] DIRECT_STREAM_METRICS', { latencyMs: responseLatency, timeToFirstTextMs: firstDeltaAt ? firstDeltaAt - startedAt : null, mode: followUpValid ? 'follow_up' : mode })
       void createIntervention({ ...suggestion, id: crypto.randomUUID(), meetingId: actionMeetingId, source: 'ai' }).then(() => refreshData()).catch((error) => { console.error('[v0] direct intervention persistence failed', error); addDiagnosticEvent('DIRECT ANSWER persistence failed') })
     } catch (error) {

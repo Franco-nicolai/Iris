@@ -186,6 +186,24 @@ function expandVentanaTerms(value: string) {
   return expanded
 }
 
+function cleanSourceText(value: string) {
+  return value
+    .replace(/<[^>]*>/g, ' ')
+    .replace(/&nbsp;|&#160;/gi, ' ')
+    .replace(/&amp;/gi, '&')
+    .replace(/&quot;|&#34;/gi, '"')
+    .replace(/&#39;|&apos;/gi, "'")
+    .replace(/\s+/g, ' ')
+    .trim()
+}
+
+function sourceSentences(value: string) {
+  const cleaned = cleanSourceText(value)
+  return (cleaned.match(/[^.!?;\n]+[.!?;]?/g) || [cleaned])
+    .map((sentence) => sentence.trim())
+    .filter((sentence) => sentence.length >= 24)
+}
+
 async function getRelevantVentanaForQuery(query: string, supportingContext = '') {
   try {
     const records = await fetchVentanaCelesteKnowledge()
@@ -331,19 +349,45 @@ export async function answerIrisMeetingQuestion(meetingId: string, userId: strin
     return parsed.data
   } catch (error) {
     if (options.signal?.aborted) throw error
-    console.warn('[v0] Direct question using source fallback', { code: error instanceof IntelligenceProviderError ? error.code : 'provider_failure', matchedSourceCount: sourceRecords.length })
+    const providerCode = error instanceof IntelligenceProviderError ? error.code : 'provider_failure'
     const queryTerms = expandVentanaTerms(query)
-    const bestSource = sourceRecords.map((record, index) => {
+    const rankedSources = sourceRecords.map((record, index) => {
       const titleTerms = expandVentanaTerms(record.title)
       const contentTerms = expandVentanaTerms(record.content)
-      return { record, index, score: [...queryTerms].filter((term) => titleTerms.has(term)).length * 8 + [...queryTerms].filter((term) => contentTerms.has(term)).length * 3 }
-    }).sort((a, b) => b.score - a.score || a.index - b.index)[0]
-    const source = bestSource && bestSource.score > 0 ? bestSource.record : undefined
-    if (source) {
-      const sourceTitle = source.title.slice(0, 120)
-      return { answer: `Encontré información relacionada en “${sourceTitle}”, pero no pude sintetizarla con seguridad ahora.`, confidence: 0.2, evidence: [sourceTitle.slice(0, 290)], fallback: true }
+      const titleMatches = [...queryTerms].filter((term) => titleTerms.has(term)).length
+      const contentMatches = [...queryTerms].filter((term) => contentTerms.has(term)).length
+      const matchingSentences = sourceSentences(record.content).map((sentence, sentenceIndex) => {
+        const matchedTerms = [...queryTerms].filter((term) => terms(sentence).has(term))
+        return { sentence, sentenceIndex, matchedTerms, score: matchedTerms.length }
+      }).filter(({ score }) => score > 0).sort((a, b) => b.score - a.score || a.sentenceIndex - b.sentenceIndex)
+      return { record, index, titleMatches, contentMatches, matchingSentences }
+    }).sort((a, b) => b.contentMatches - a.contentMatches || b.titleMatches - a.titleMatches || a.index - b.index)
+    const bestSource = rankedSources.find((source) => source.contentMatches > 0 && source.matchingSentences.length > 0)
+    const titleOnlySource = rankedSources.find((source) => source.titleMatches > 0)
+    console.warn('[v0] Direct question using source fallback', {
+      code: providerCode,
+      matchedSourceCount: sourceRecords.length,
+      contentMatchCount: rankedSources.filter((source) => source.contentMatches > 0).length,
+      selectedSource: bestSource?.record.title.slice(0, 120) || titleOnlySource?.record.title.slice(0, 120) || null,
+      fallbackType: bestSource ? 'source_excerpt' : titleOnlySource ? 'title_only' : 'no_match',
+    })
+    if (bestSource) {
+      const sourceTitle = bestSource.record.title.slice(0, 180)
+      const excerpts = bestSource.matchingSentences.slice(0, 2).map(({ sentence }) => sentence)
+      let excerpt = excerpts.join(' ')
+      if (excerpt.length > 420) excerpt = `${excerpt.slice(0, 417).trimEnd()}…`
+      return {
+        answer: `Encontré una coincidencia en ${sourceTitle}: “${excerpt}” No pude sintetizar el registro con IA ahora; este es el fragmento pertinente de la fuente.`,
+        confidence: 0.62,
+        evidence: [sourceTitle.slice(0, 290)],
+        fallback: true,
+      }
     }
-    return { answer: 'No pude generar una respuesta ahora y no encontré registros coincidentes en la reunión, Ventana Celeste ni el historial disponible.', confidence: 0, evidence: [], fallback: true }
+    if (titleOnlySource) {
+      const sourceTitle = titleOnlySource.record.title.slice(0, 180)
+      return { answer: `Encontré el registro “${sourceTitle}”, pero su contenido no confirma una respuesta a esta pregunta. Cloudflare no pudo sintetizar los datos; no afirmaré que el registro contiene la respuesta sin encontrar evidencia en su texto.`, confidence: 0.2, evidence: [sourceTitle.slice(0, 290)], fallback: true }
+    }
+    return { answer: 'No encontré fragmentos que coincidan con esta pregunta en la reunión actual, Ventana Celeste, la memoria Iris ni las reuniones anteriores consultadas. Eso no confirma que el dato no exista en la base completa.', confidence: 0, evidence: [], fallback: true }
   }
 }
 
