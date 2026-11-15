@@ -1,8 +1,8 @@
-export const INTERVENTION_INTENSITY_CONFIG = { low: { confidenceThreshold: 0.8, minNewSegments: 5, cooldownMs: 90_000 }, medium: { confidenceThreshold: 0.65, minNewSegments: 3, cooldownMs: 45_000 }, high: { confidenceThreshold: 0.5, minNewSegments: 2, cooldownMs: 20_000 } } as const
+export const INTERVENTION_INTENSITY_CONFIG = { low: { confidenceThreshold: 0.85, minNewSegments: 7, cooldownMs: 90_000 }, medium: { confidenceThreshold: 0.75, minNewSegments: 5, cooldownMs: 45_000 }, high: { confidenceThreshold: 0.65, minNewSegments: 4, cooldownMs: 30_000 } } as const
 export type InterventionIntensity = keyof typeof INTERVENTION_INTENSITY_CONFIG
 export const INTERVENTION_TEST_MODE_CONFIG = { minNewSegments: 1, minAnalysisIntervalMs: 8_000, confidenceThreshold: 0.35, cooldownMs: 10_000, signalCooldownMs: 5_000 } as const
-export const AUTO_ANALYSIS_MIN_INTERVAL_MS = 15_000
-export const AUTO_ANALYSIS_MIN_NEW_SEGMENTS = 3
+export const AUTO_ANALYSIS_MIN_INTERVAL_MS = 25_000
+export const AUTO_ANALYSIS_MIN_NEW_SEGMENTS = 5
 export const INTERVENTION_COOLDOWN_MS = 45_000
 export const INTERVENTION_DUPLICATE_WINDOW_MS = 5 * 60_000
 export const SIGNAL_COOLDOWN_MS = Number(process.env.SIGNAL_COOLDOWN_MS) > 0 ? Number(process.env.SIGNAL_COOLDOWN_MS) : 12_000
