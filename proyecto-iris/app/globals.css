@@ -432,6 +432,98 @@ main.iris-shell.workspace-open[data-workspace-tab="settings"] .interventions-vie
   pointer-events: none;
 }
 
+/* Pyramid projection: keep each face's layout still; rotate only its projected message. */
+.pepper-ghost-face-projection {
+  display: grid;
+  place-items: center;
+  width: 100%;
+  height: 100%;
+  transform: none !important;
+}
+.pepper-ghost-face-east .pepper-ghost-face-projection > *,
+.pepper-ghost-face-east .pepper-ghost-face-projection::before { transform: rotate(90deg); }
+.pepper-ghost-face-south .pepper-ghost-face-projection > *,
+.pepper-ghost-face-south .pepper-ghost-face-projection::before { transform: rotate(180deg); }
+.pepper-ghost-face-west .pepper-ghost-face-projection > *,
+.pepper-ghost-face-west .pepper-ghost-face-projection::before { transform: rotate(270deg); }
+.pepper-ghost-orb {
+  display: block;
+  width: clamp(76px, 14vmin, 150px);
+  aspect-ratio: 1;
+  border: 1px solid #d8f8ffcc;
+  border-radius: 50%;
+  background: radial-gradient(circle at 34% 28%, #fff 0 4%, #d9f9ff 9%, #77dfff 23%, #168dc9 52%, #061b36 76%);
+  box-shadow: 0 0 24px 8px #63d8ff99, 0 0 72px 25px #28baff55, inset -12px -18px 30px #020b1c99;
+  animation: pepper-orb-pulse 1.8s ease-in-out infinite;
+}
+.pepper-ghost-message-orb {
+  display: grid;
+  place-items: center;
+  width: clamp(170px, 25vmin, 250px);
+  aspect-ratio: 1;
+  padding: 13%;
+  overflow: hidden;
+  border: 1px solid #d8f8ffdd;
+  border-radius: 50%;
+  background: radial-gradient(circle at 34% 26%, #d8f9ffed 0%, #63d2f5e8 11%, #14628beF 45%, #06172eeF 76%);
+  box-shadow: 0 0 27px 9px #62d6ffbb, 0 0 86px 29px #16aaff66, inset -18px -24px 38px #020817cc;
+  animation: pepper-orb-arrive .8s cubic-bezier(.2,.8,.2,1) both;
+}
+.pepper-ghost-message-orb p,
+.pepper-ghost-message-projection p {
+  display: -webkit-box;
+  margin: 0;
+  overflow: hidden;
+  color: #fff;
+  font: 600 clamp(16px, 2.2vmin, 23px)/1.25 Arial, sans-serif;
+  text-align: center;
+  text-shadow: 0 1px 14px #001321;
+  overflow-wrap: anywhere;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 5;
+}
+.pepper-ghost-message-projection {
+  display: grid;
+  place-items: center;
+  width: 96%;
+  height: 94%;
+  padding: 12px;
+  border: 1px solid #aeeeff66;
+  border-radius: 17px;
+  background: linear-gradient(145deg, #06243bc9, #04101fdf 72%);
+  box-shadow: 0 0 28px #26bfff55, inset 0 0 25px #9ceeff12;
+  backdrop-filter: blur(5px);
+  animation: pepper-message-arrive .55s ease-out both;
+}
+.pepper-ghost-message-projection p {
+  font-size: clamp(18px, 2.5vmin, 29px);
+  line-height: 1.28;
+  -webkit-line-clamp: 6;
+}
+@keyframes pepper-orb-pulse {
+  0%, 100% { filter: brightness(.92); transform: scale(.94); }
+  50% { filter: brightness(1.3); transform: scale(1.08); }
+}
+@keyframes pepper-orb-arrive {
+  from { opacity: .35; transform: scale(.58); }
+  to { opacity: 1; transform: scale(1); }
+}
+@keyframes pepper-message-arrive {
+  from { opacity: .2; filter: blur(5px); }
+  to { opacity: 1; filter: blur(0); }
+}
+@media (max-width: 600px) {
+  .pepper-ghost-scene { width: min(96vw, 96vh); height: min(96vw, 96vh); }
+  .pepper-ghost-message-orb { width: clamp(116px, 27vw, 168px); padding: 13%; }
+  .pepper-ghost-message-orb p { font-size: clamp(12px, 3vw, 16px); -webkit-line-clamp: 5; }
+  .pepper-ghost-message-projection { width: 100%; height: 96%; padding: 7px; }
+  .pepper-ghost-message-projection p { font-size: clamp(13px, 3.4vw, 18px); -webkit-line-clamp: 6; }
+  .pepper-ghost-orb { width: clamp(56px, 16vw, 88px); }
+}
+@media (prefers-reduced-motion: reduce) {
+  .pepper-ghost-orb, .pepper-ghost-message-orb, .pepper-ghost-message-projection { animation: none; }
+}
+
 .pepper-ghost-center-eye {
   display: block;
   width: 100%;
