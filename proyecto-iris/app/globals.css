@@ -341,12 +341,13 @@ main.iris-shell.workspace-open[data-workspace-tab="settings"] .interventions-vie
 .pepper-ghost-face-east .pepper-ghost-face-projection { transform: rotate(90deg); }
 .pepper-ghost-face-south .pepper-ghost-face-projection { transform: rotate(180deg); }
 .pepper-ghost-face-west .pepper-ghost-face-projection { transform: rotate(270deg); }
-.pepper-ghost-directional-eye { position: relative; display: grid; flex: none; place-items: center; width: clamp(84px, 9vw, 112px); aspect-ratio: 1; }
+.pepper-ghost-directional-eye { position: relative; display: grid; flex: none; place-items: center; width: clamp(128px, 15vmin, 184px); aspect-ratio: 1; }
 .pepper-ghost-directional-eye::before { position: absolute; z-index: 1; top: 50%; left: 50%; width: 14%; aspect-ratio: 1; border-radius: 50%; background: #050509; content: ''; transform: translate(-50%, -50%); }
 .pepper-ghost-image { display: block; width: 100%; height: 100%; object-fit: contain; opacity: 1; mix-blend-mode: screen; filter: drop-shadow(0 0 10px #47cfff55); animation: none !important; transition: none; }
 .pepper-ghost-scene-n2 .pepper-ghost-image, .pepper-ghost-scene-n3 .pepper-ghost-image { opacity: 1; mix-blend-mode: screen; animation: none !important; }
 .pepper-ghost-gaze-marker { position: absolute; z-index: 2; top: 35%; left: 50%; width: 9%; aspect-ratio: 1; border: 1px solid #d7faff; border-radius: 50%; background: radial-gradient(circle at 38% 35%, #ffffff 0 14%, #a5efff 28%, #21bfff 72%, #0786c5 100%); box-shadow: 0 0 12px #56d6ffb3; transform: translate(-50%, -50%); }
-.pepper-ghost-scene-n3 .pepper-ghost-directional-eye { width: clamp(72px, 7vw, 84px); }
+.pepper-ghost-scene-n3 .pepper-ghost-directional-eye { width: clamp(104px, 11vmin, 144px); }
+.pepper-ghost-scene-n1 .pepper-ghost-gaze-marker,
 .pepper-ghost-scene-n2 .pepper-ghost-gaze-marker,
 .pepper-ghost-scene-n3 .pepper-ghost-gaze-marker { width: 22%; box-shadow: 0 0 18px 6px #56d6ffb3, 0 0 44px 14px #21bfff66; animation: pepper-pyramid-beacon 1.8s ease-in-out infinite; }
 .pepper-ghost-scene-idle .pepper-ghost-signals .pepper-ghost-signal-dot { width: clamp(58px, 8vmin, 84px); height: clamp(58px, 8vmin, 84px); box-shadow: 0 0 38px 18px #71d8ffbd, 0 0 90px 30px #39bfff55; animation: pepper-pyramid-beacon 2s ease-in-out infinite; }
@@ -394,8 +395,8 @@ main.iris-shell.workspace-open[data-workspace-tab="settings"] .interventions-vie
   .pepper-ghost-center .pepper-ghost-eyebrow { font-size: 7px; letter-spacing: .1em; }
   .pepper-ghost-center .pepper-ghost-hint { font-size: 8px; }
   .pepper-ghost-face-projection { gap: 3px; }
-  .pepper-ghost-directional-eye { width: clamp(42px, 14vw, 54px); }
-  .pepper-ghost-scene-n3 .pepper-ghost-directional-eye { width: clamp(36px, 13vw, 52px); }
+  .pepper-ghost-directional-eye { width: clamp(68px, 18vw, 92px); }
+  .pepper-ghost-scene-n3 .pepper-ghost-directional-eye { width: clamp(56px, 15vw, 76px); }
   .pepper-ghost-scene-n1 .pepper-ghost-signals .pepper-ghost-signal-dot,
   .pepper-ghost-scene-n2 .pepper-ghost-face .pepper-ghost-signal-dot,
   .pepper-ghost-scene-n3 .pepper-ghost-face .pepper-ghost-signal-dot { width: clamp(38px, 10vw, 54px); height: clamp(38px, 10vw, 54px); box-shadow: 0 0 24px 11px #71d8ffbd, 0 0 48px 18px #39bfff55; }
@@ -403,9 +404,8 @@ main.iris-shell.workspace-open[data-workspace-tab="settings"] .interventions-vie
   .pepper-ghost-face-stage { gap: 2px; padding: 2px 4px; border-radius: 6px; }
   .pepper-ghost-face-stage > span { font-size: 7px; }
   .pepper-ghost-face-stage p { font-size: 10px; line-height: 1.15; -webkit-line-clamp: 3; }
-  .pepper-ghost-scene-n3 .pepper-ghost-face-stage:not(:last-child) { display: none; }
-  .pepper-ghost-scene-n3 .pepper-ghost-face-stage:last-child { padding: 3px 4px; }
-  .pepper-ghost-scene-n3 .pepper-ghost-face-stage:last-child p { font-size: 9px; line-height: 1.1; -webkit-line-clamp: 5; }
+  .pepper-ghost-scene-n3 .pepper-ghost-face-copy { gap: 2px; }
+  .pepper-ghost-scene-n3 .pepper-ghost-face-stage p { font-size: 9px; line-height: 1.1; -webkit-line-clamp: 3; }
 }
 
 .pepper-ghost-center {
