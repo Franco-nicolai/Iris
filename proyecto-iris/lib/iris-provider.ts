@@ -88,8 +88,20 @@ export function extractCloudflareGeneratedContent(payload: unknown): string {
   ]
   const available = candidates.filter((candidate) => normalizedCandidate(candidate.value)).map((candidate) => candidate.path)
   const match = candidates.find((candidate) => { const value = normalizedCandidate(candidate.value); return value !== null && (candidate.path.endsWith('.response') ? containsJsonObject(value) : true) })
-  if (match) { const content = normalizedCandidate(match.value)!; if (process.env.NODE_ENV !== 'production') console.log('[v0] CLOUDFLARE_CONTENT_EXTRACTION', { selectedRoute: match.path, candidateRoutesAvailable: available, selectedContentType: 'string', selectedContentLength: content.length }); return content }
-  if (process.env.NODE_ENV !== 'production') console.warn('[v0] CLOUDFLARE_CONTENT_EXTRACTION', { selectedRoute: null, candidateRoutesAvailable: available, selectedContentType: null, selectedContentLength: 0, payloadType: Array.isArray(payload) ? 'array' : typeof payload, rootKeys: root ? Object.keys(root).slice(0, 20) : [], resultKeys: resultObject ? Object.keys(resultObject).slice(0, 20) : [], resultType: Array.isArray(result) ? 'array' : typeof result })
+  if (match) { const content = normalizedCandidate(match.value)!; console.log('[v0] CLOUDFLARE_CONTENT_EXTRACTION', { selectedRoute: match.path, candidateRoutesAvailable: available, selectedContentType: 'string', selectedContentLength: content.length }); return content }
+  const findContract = (value: unknown, path: string, depth = 0): { path: string; content: string } | null => {
+    if (depth > 6 || value === null || value === undefined) return null
+    if (typeof value === 'string') return /["']shouldIntervene["']\s*:/.test(value) ? { path, content: value } : null
+    if (Array.isArray(value)) { for (let index = 0; index < value.length; index += 1) { const found = findContract(value[index], `${path}[${index}]`, depth + 1); if (found) return found }; return null }
+    if (typeof value !== 'object') return null
+    const object = value as Record<string, unknown>
+    if ('shouldIntervene' in object || 'should_intervene' in object) return { path, content: JSON.stringify(object) }
+    for (const [key, child] of Object.entries(object)) { const found = findContract(child, `${path}.${key}`, depth + 1); if (found) return found }
+    return null
+  }
+  const contract = findContract(payload, 'root')
+  if (contract) { console.log('[v0] CLOUDFLARE_CONTENT_EXTRACTION', { selectedRoute: contract.path, candidateRoutesAvailable: available, selectedContentType: 'structured_contract', selectedContentLength: contract.content.length }); return contract.content }
+  console.warn('[v0] CLOUDFLARE_CONTENT_EXTRACTION', { selectedRoute: null, candidateRoutesAvailable: available, selectedContentType: null, selectedContentLength: 0, payloadType: Array.isArray(payload) ? 'array' : typeof payload, rootKeys: root ? Object.keys(root).slice(0, 20) : [], resultKeys: resultObject ? Object.keys(resultObject).slice(0, 20) : [], resultType: Array.isArray(result) ? 'array' : typeof result })
   throw new IntelligenceProviderError('invalid_json', 'Cloudflare respondió, pero no se encontró contenido generado.')
 }
 
