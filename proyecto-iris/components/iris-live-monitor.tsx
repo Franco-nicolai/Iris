@@ -3,23 +3,27 @@
 import useSWR from 'swr'
 import { listMeetingData } from '@/app/actions/iris'
 
+const faces = ['north', 'east', 'south', 'west'] as const
+
 export function IrisLiveMonitor({ meetingId }: { meetingId: string }) {
-  const { data, error, isLoading, mutate } = useSWR(['iris-live-monitor', meetingId], () => listMeetingData(meetingId), { refreshInterval: 3000, revalidateOnFocus: true })
+  const { data, error, isLoading, mutate } = useSWR(['iris-live-monitor', meetingId], () => listMeetingData(meetingId), { refreshInterval: 1200, revalidateOnFocus: true })
 
-  if (isLoading) return <main className="mobile-monitor"><p role="status">Conectando con la reunión…</p></main>
-  if (error || !data) return <main className="mobile-monitor"><section className="mobile-monitor-card"><h1>No se pudo abrir esta reunión</h1><p>Inicia sesión con la misma cuenta de Iris que está usando el computador, o revisa que el enlace corresponda a una reunión tuya.</p></section></main>
+  if (isLoading) return <main className="iris-remote-screen"><p role="status">Conectando con Iris…</p></main>
+  if (error || !data) return <main className="iris-remote-screen"><section className="iris-remote-error"><h1>No se pudo abrir esta reunión</h1><p>Inicia sesión con la misma cuenta de Iris que está usando el computador.</p></section></main>
 
-  const finalSegments = data.segments.filter((segment) => segment.isFinal)
   const activeAgenda = data.agenda.find((item) => item.status === 'active')
-  const latestIntervention = data.interventions.slice().sort((a, b) => b.createdAt.getTime() - a.createdAt.getTime())[0]
-  const latestTranscript = finalSegments.slice().sort((a, b) => b.startedAt.getTime() - a.startedAt.getTime()).slice(0, 5)
+  const latestIntervention = [...data.interventions].sort((a, b) => b.createdAt.getTime() - a.createdAt.getTime())[0]
+  const currentMessage = latestIntervention?.content?.trim() || activeAgenda?.title || 'Iris está escuchando la reunión.'
+  const level = latestIntervention?.level === 3 ? 3 : latestIntervention?.level === 2 ? 2 : 1
+  const live = data.meeting?.status === 'live'
 
-  return <main className="mobile-monitor">
-    <header className="mobile-monitor-header"><a href="/" className="mobile-monitor-brand"><span>i</span> Iris</a><span className={`mobile-monitor-status ${data.meeting?.status === 'live' ? 'is-live' : ''}`}><i />{data.meeting?.status === 'live' ? 'En vivo' : data.meeting?.status === 'ended' ? 'Finalizada' : 'En pausa'}</span></header>
-    <section className="mobile-monitor-title"><span className="eyebrow accent">MONITOR REMOTO</span><h1>{data.meeting?.title || 'Reunión'}</h1><p>Actualización automática cada 3 segundos</p></section>
-    <section className="mobile-monitor-kpis" aria-label="Métricas de la reunión"><article><span>SEGMENTOS</span><strong>{finalSegments.length}</strong></article><article><span>INTERVENCIONES</span><strong>{data.interventions.length}</strong></article><article><span>DECISIONES</span><strong>{data.decisions.length}</strong></article><article><span>TAREAS</span><strong>{data.tasks.length}</strong></article></section>
-    <section className="mobile-monitor-card"><span className="eyebrow">PUNTO ACTIVO</span><h2>{activeAgenda?.title || 'Sin punto activo en la minuta'}</h2>{activeAgenda?.note && <p>{activeAgenda.note}</p>}</section>
-    <section className="mobile-monitor-card"><div className="mobile-monitor-card-heading"><div><span className="eyebrow">GUÍA DE IRIS</span><h2>Última intervención</h2></div><button type="button" onClick={() => void mutate()} aria-label="Actualizar monitor">Actualizar</button></div>{latestIntervention ? <div className="mobile-monitor-intervention"><strong>Nivel {latestIntervention.level} · {latestIntervention.type.replaceAll('_', ' ')}</strong><p>{latestIntervention.content}</p><small>{latestIntervention.createdAt.toLocaleTimeString('es-CL', { hour: '2-digit', minute: '2-digit' })}{latestIntervention.observation ? ` · ${latestIntervention.observation}` : ''}</small></div> : <p className="mobile-monitor-muted">Aún no hay intervenciones.</p>}</section>
-    <section className="mobile-monitor-card"><span className="eyebrow">TRANSCRIPCIÓN RECIENTE</span>{latestTranscript.length ? <div className="mobile-monitor-transcript">{latestTranscript.map((segment) => <article key={segment.id}><time>{segment.startedAt.toLocaleTimeString('es-CL', { hour: '2-digit', minute: '2-digit' })}</time><p><strong>{segment.speaker}:</strong> {segment.text}</p></article>)}</div> : <p className="mobile-monitor-muted">La transcripción aparecerá aquí cuando haya segmentos finales.</p>}</section>
+  return <main className="iris-remote-screen" data-level={level}>
+    <header className="iris-remote-header"><span className="iris-remote-brand"><i>i</i> Iris</span><span className={`iris-remote-live ${live ? 'is-live' : ''}`}><i />{live ? 'EN VIVO' : data.meeting?.status === 'ended' ? 'FINALIZADA' : 'EN PAUSA'}</span><button type="button" onClick={() => void mutate()} aria-label="Actualizar pantalla">↻</button></header>
+    <div className="iris-remote-title"><h1>{data.meeting?.title || 'Reunión'}</h1><p>{activeAgenda?.title || 'Sin punto activo'}</p></div>
+    <section className={`iris-remote-prism level-${level}`} aria-live="polite" aria-label="Interacción actual de Iris">
+      <div className="iris-remote-faces" aria-hidden="true">{faces.map((face) => <div className={`iris-remote-face face-${face}`} key={face}><div className="iris-remote-projection">{level === 1 ? <span className="iris-remote-orb" /> : level === 2 ? <div className="iris-remote-message-orb"><p>{currentMessage}</p></div> : <div className="iris-remote-message"><p>{currentMessage}</p></div>}</div></div>)}</div>
+      <div className="iris-remote-center" aria-hidden="true"><span /></div>
+    </section>
+    <footer className="iris-remote-footer"><span>{latestIntervention ? 'INTERACCIÓN DE IRIS' : 'ESCUCHANDO'}</span><p>{currentMessage}</p><small>Sincronización automática · última actualización {new Date().toLocaleTimeString('es-CL', { hour: '2-digit', minute: '2-digit', second: '2-digit' })}</small></footer>
   </main>
 }
