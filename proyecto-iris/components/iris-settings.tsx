@@ -1,5 +1,6 @@
 'use client'
 
+import type { ReactNode } from 'react'
 import { IrisAnalyticsDashboard } from '@/components/iris-analytics-dashboard'
 
 type Props = {
@@ -7,9 +8,10 @@ type Props = {
   muted: boolean
   onIntensityChange: (value: 'low' | 'medium' | 'high') => void
   onMutedChange: (value: boolean) => void
+  children?: ReactNode
 }
 
-export function IrisSettings({ intensity, muted, onIntensityChange, onMutedChange }: Props) {
+export function IrisSettings({ intensity, muted, onIntensityChange, onMutedChange, children }: Props) {
   return <section className="settings-view workspace-tool iris-settings" aria-labelledby="settings-title">
     <header className="settings-header">
       <div>
@@ -19,5 +21,6 @@ export function IrisSettings({ intensity, muted, onIntensityChange, onMutedChang
       </div>
     </header>
     <IrisAnalyticsDashboard intensity={intensity} muted={muted} onIntensityChange={onIntensityChange} onMutedChange={onMutedChange} />
+    {children}
   </section>
 }
