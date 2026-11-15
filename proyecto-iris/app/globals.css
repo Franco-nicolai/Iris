@@ -1011,3 +1011,23 @@ main.iris-shell.workspace-open[data-workspace-tab="settings"] .knowledge-panel {
   .top-nav button { padding: 7px 8px; font-size: 10px; }
   .top-nav .new-meeting-nav { gap: 4px; }
 }
+
+/* N2/N3 call attention through light and movement; hologram faces stay text-free. */
+.iris-prism-attention { position: relative; display: grid; place-items: center; width: min(100%, 25vmin); aspect-ratio: 1; border-radius: 50%; isolation: isolate; }
+.iris-prism-attention::before { content: ''; position: absolute; inset: 7%; border: 2px solid transparent; border-radius: 50%; animation: iris-prism-orbit 2.8s linear infinite; }
+.iris-prism-attention i { position: absolute; inset: 8%; border: 2px solid currentColor; border-radius: 50%; opacity: 0; animation: iris-prism-ripple 1.8s ease-out infinite; }
+.iris-prism-attention i:nth-child(2) { animation-delay: .6s; }
+.iris-prism-attention i:nth-child(3) { animation-delay: 1.2s; }
+.iris-prism-attention span { position: relative; z-index: 1; width: 23%; aspect-ratio: 1; border: 2px solid #f5fdff; border-radius: 50%; background: currentColor; }
+.iris-prism-attention-n2 { color: #64eaff; background: radial-gradient(circle, #4de6ff2c 0 18%, #20aaff14 44%, transparent 72%); filter: drop-shadow(0 0 18px #4deaffbb) drop-shadow(0 0 42px #159bff88); animation: iris-prism-breathe 1.7s ease-in-out infinite; }
+.iris-prism-attention-n2::before { border-top-color: #d5fbff; border-right-color: #48dfff; box-shadow: inset 0 0 18px #44eaff52, 0 0 20px #51e8ff88; }
+.iris-prism-attention-n2 span { box-shadow: 0 0 14px 6px #bcf8ff, 0 0 42px 17px #39cfff; }
+.iris-prism-attention-n3 { color: #ffb64c; background: radial-gradient(circle, #ff8c3044 0 20%, #e13d7b26 46%, transparent 74%); filter: drop-shadow(0 0 22px #ff9a4acc) drop-shadow(0 0 52px #ea4f9b99); animation: iris-prism-alert 1.15s ease-in-out infinite; }
+.iris-prism-attention-n3::before { inset: 3%; border-width: 3px; border-top-color: #fff2bd; border-right-color: #ff9a43; border-bottom-color: #fb62bb; box-shadow: inset 0 0 24px #ff8b4b77, 0 0 26px #ff725dcc; animation-duration: 1.6s; }
+.iris-prism-attention-n3 i { inset: 5%; border-width: 3px; }
+.iris-prism-attention-n3 span { width: 27%; background: #fff0bc; box-shadow: 0 0 18px 8px #fff2b8, 0 0 52px 23px #ff8c43; }
+@keyframes iris-prism-ripple { 0% { opacity: .95; transform: scale(.42); } 100% { opacity: 0; transform: scale(1.22); } }
+@keyframes iris-prism-orbit { to { transform: rotate(360deg); } }
+@keyframes iris-prism-breathe { 50% { transform: scale(1.09); } }
+@keyframes iris-prism-alert { 0%, 100% { transform: scale(.95); filter: brightness(.9); } 50% { transform: scale(1.12); filter: brightness(1.45); } }
+@media (prefers-reduced-motion: reduce) { .iris-prism-attention, .iris-prism-attention::before, .iris-prism-attention i { animation: none; opacity: 1; } }

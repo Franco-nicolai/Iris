@@ -21,7 +21,7 @@ export function IrisLiveMonitor({ meetingId }: { meetingId: string }) {
     <div className="iris-remote-title"><h1>{data.meeting?.title || 'Reunión'}</h1><p>{activeAgenda?.title || 'Sin punto activo'}</p></div>
     <section className={`iris-remote-prism level-${level}`} aria-live="polite" aria-label="Interacción actual de Iris">
       <p className="sr-only">{currentMessage}</p>
-      <IrisPrismFaces level={level} message={currentMessage} />
+      <IrisPrismFaces level={level} />
     </section>
     <footer className="iris-remote-footer"><span>{latestIntervention ? 'INTERACCIÓN DE IRIS' : 'ESCUCHANDO'}</span><p>{currentMessage}</p><small>Sincronización automática · última actualización {new Date().toLocaleTimeString('es-CL', { hour: '2-digit', minute: '2-digit', second: '2-digit' })}</small></footer>
   </main>

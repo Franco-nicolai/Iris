@@ -175,6 +175,7 @@ export function IrisWorkspace({ user, meetings: initialMeetings }: { user: { nam
   const newMeetingFormRef = useRef(newMeetingForm)
   newMeetingFormRef.current = newMeetingForm
   const [suggestedAgenda, setSuggestedAgenda] = useState<Array<{ title: string; reason: string | null }>>([])
+  const [agendaSuggestionSource, setAgendaSuggestionSource] = useState<'model' | 'fallback' | 'immediate' | null>(null)
   const [agendaSuggestionLoading, setAgendaSuggestionLoading] = useState(false)
   const agendaPrefetchTitleRef = useRef('')
   const agendaRequestRef = useRef(0)
@@ -205,6 +206,7 @@ export function IrisWorkspace({ user, meetings: initialMeetings }: { user: { nam
     setSession('idle')
     setNewMeetingForm({ title: '', objective: '', contextNotes: '', agenda: '' })
     setSuggestedAgenda([])
+    setAgendaSuggestionSource(null)
     setPreMeetingStep(0)
     setDataError('')
     setWorkspaceOpen(false)
@@ -214,7 +216,49 @@ export function IrisWorkspace({ user, meetings: initialMeetings }: { user: { nam
   const terminationRequestedRef = useRef(false)
   const forcePresentation = (level: 1 | 2 | 3) => { const content = level === 1 ? 'Prueba N1: mensaje discreto de Iris.' : level === 2 ? 'Prueba N2: Iris quiere llamar la atención sobre este punto.' : 'Prueba N3: intervención explícita de Iris.'; presentIntervention('simulation', { shouldIntervene: true, level, type: level === 1 ? 'generic' : 'off_topic', reason: 'forced_development_test', content, confidence: 1, evidence: ['fixture'] }, level === 1 ? 'signal' : level === 2 ? 'interventionLevel2' : 'interventionLevel3') }
   const runScenario = async (scenario: 'n1' | 'n2', times = 1) => { if (process.env.NODE_ENV === 'production') return; setScenarioRunning(`${scenario}-${times}`); const results: Array<{ suggestion: SuggestedIntervention | null; policy: InterventionPolicyResult | null; error?: string }> = []; for (let index = 0; index < times; index += 1) { try { const suggestion = await runProactiveScenarioAction(scenario); const policy = evaluateInterventionPolicy(suggestion, { intensity: 'medium' }); results.push({ suggestion, policy }); if (times === 1 && policy.action !== 'ignore') presentIntervention('simulation', suggestion, policy.action === 'signal' ? 'signal' : suggestion.level === 3 ? 'interventionLevel3' : 'interventionLevel2') } catch (error) { results.push({ suggestion: null, policy: null, error: error instanceof Error ? error.message : 'error desconocido' }) } } setScenarioResults((current) => ({ ...current, [scenario]: results })); setScenarioRunning(null) }
-  async function saveMeetingDraft(startAfterSave = false) { const title = newMeetingForm.title.trim(); if (!title) return; setPending(true); try { const meetingId = selected?.status === 'scheduled' ? selected.id : crypto.randomUUID(); const startedAt = selected?.status === 'scheduled' ? new Date(selected.startedAt) : new Date(); await saveMeeting({ id: meetingId, title, objective: newMeetingForm.objective.trim(), contextNotes: newMeetingForm.contextNotes.trim() || null, startedAt, endedAt: null, status: startAfterSave ? 'live' : 'scheduled', participantNames: selected?.participantNames ?? [] }); if (!selected || selected.status !== 'scheduled') { const agendaItems = newMeetingForm.agenda.split(/\r?\n/).map((item) => item.trim()).filter(Boolean); await Promise.all(agendaItems.map((item, position) => saveAgendaItem({ id: crypto.randomUUID(), meetingId, title: item, position, status: position === 0 ? 'active' : 'pending', note: null }))); const confirmedData = await listMeetingData(meetingId); if (process.env.NODE_ENV !== 'production') console.log('[v0] ACTIVE_MEETING_AGENDA_CONFIRMED', { activeMeetingId: meetingId, agendaItemsCount: confirmedData.agenda.length }); const createdMeeting = { id: meetingId, title, startedAt: startedAt.toISOString(), endedAt: null, status: startAfterSave ? 'live' : 'scheduled', participantNames: [], createdAt: startedAt.toISOString() }; setMeetings((current) => [createdMeeting, ...current]); } else { setMeetings((current) => current.map((meeting) => meeting.id === meetingId ? { ...meeting, title, status: startAfterSave ? 'live' : 'scheduled' } : meeting)); } activeMeetingIdRef.current = startAfterSave ? meetingId : activeMeetingIdRef.current; setSelectedId(meetingId); setData(emptyData); setNewMeetingOpen(false); setWorkspaceOpen(false); setWorkspaceTab('meetings'); setSession(startAfterSave ? 'connecting' : 'idle'); router.refresh(); if (startAfterSave) setTimeout(() => void start(), 0) } catch (error) { setDataError(error instanceof Error ? error.message : 'No se pudo guardar la reunión.') } finally { setPending(false) } }
+  async function saveMeetingDraft(startAfterSave = false) {
+    const title = newMeetingForm.title.trim()
+    if (!title) return
+    setPending(true)
+    try {
+      const editingScheduledMeeting = selected?.status === 'scheduled'
+      const meetingId = editingScheduledMeeting ? selected.id : crypto.randomUUID()
+      const startedAt = editingScheduledMeeting ? new Date(selected.startedAt) : new Date()
+      const agendaItems = newMeetingForm.agenda.split(/\r?\n/).map((item) => item.trim()).filter(Boolean).slice(0, 4)
+      const meetingContext = { objective: newMeetingForm.objective.trim(), contextNotes: newMeetingForm.contextNotes.trim() || null }
+
+      await saveMeeting({ id: meetingId, title, ...meetingContext, startedAt, endedAt: null, status: startAfterSave ? 'live' : 'scheduled', participantNames: selected?.participantNames ?? [] })
+
+      if (editingScheduledMeeting) {
+        const existing = await listMeetingData(meetingId)
+        await Promise.all(existing.agenda.map((item) => deleteAgendaItem({ id: item.id, meetingId })))
+        await Promise.all(agendaItems.map((item, position) => saveAgendaItem({ id: crypto.randomUUID(), meetingId, title: item, position, status: position === 0 ? 'active' : 'pending', note: null })))
+        const confirmedData = await listMeetingData(meetingId)
+        setData((current) => ({ ...current, meeting: { ...meetingContext }, agenda: confirmedData.agenda }))
+        setMeetings((current) => current.map((meeting) => meeting.id === meetingId ? { ...meeting, title, status: startAfterSave ? 'live' : 'scheduled' } : meeting))
+      } else {
+        await Promise.all(agendaItems.map((item, position) => saveAgendaItem({ id: crypto.randomUUID(), meetingId, title: item, position, status: position === 0 ? 'active' : 'pending', note: null })))
+        const confirmedData = await listMeetingData(meetingId)
+        if (process.env.NODE_ENV !== 'production') console.log('[v0] ACTIVE_MEETING_AGENDA_CONFIRMED', { activeMeetingId: meetingId, agendaItemsCount: confirmedData.agenda.length })
+        setData({ ...emptyData, meeting: meetingContext, agenda: confirmedData.agenda })
+        const createdMeeting = { id: meetingId, title, startedAt: startedAt.toISOString(), endedAt: null, status: startAfterSave ? 'live' : 'scheduled', participantNames: [], createdAt: startedAt.toISOString() }
+        setMeetings((current) => [createdMeeting, ...current])
+      }
+
+      activeMeetingIdRef.current = startAfterSave ? meetingId : activeMeetingIdRef.current
+      setSelectedId(meetingId)
+      setNewMeetingOpen(false)
+      setWorkspaceOpen(false)
+      setWorkspaceTab('meetings')
+      setSession(startAfterSave ? 'connecting' : 'idle')
+      router.refresh()
+      if (startAfterSave) setTimeout(() => void start(), 0)
+    } catch (error) {
+      setDataError(error instanceof Error ? error.message : 'No se pudo guardar la reunión.')
+    } finally {
+      setPending(false)
+    }
+  }
   function toggleFieldDictation(field: 'title' | 'objective' | 'contextNotes' | 'agenda') { if (dictatingField === field) { dictationRef.current?.stop(); dictationRef.current = null; setDictatingField(null); return } dictationRef.current?.stop(); const provider = new WebSpeechTranscriptionProvider('es-CL'); provider.onFinal((text) => setNewMeetingForm((current) => ({ ...current, [field]: `${current[field].trim()}${current[field].trim() ? ' ' : ''}${text}` }))).onError(() => { setDictatingField(null); dictationRef.current = null }); provider.onState((state) => { if (state === 'ended') { setDictatingField(null); dictationRef.current = null } }); try { provider.start(); dictationRef.current = provider; setDictatingField(field) } catch { setDictatingField(null); dictationRef.current = null } }
   async function generateAgendaSuggestion(force = false) {
     const title = newMeetingForm.title.trim()
@@ -226,8 +270,9 @@ export function IrisWorkspace({ user, meetings: initialMeetings }: { user: { nam
       const result = await suggestMeetingAgendaAction({ title, objective: newMeetingForm.objective, contextNotes: newMeetingForm.contextNotes })
       if (requestId !== agendaRequestRef.current || newMeetingFormRef.current.title.trim() !== title) return
       const cleanAgendaTitle = (value: string) => value.replace(/^\s*(?:\d+\s*[.)\-:]\s*)+/, '').trim()
-      const cleanAgendaItems = result.agendaItems.map((item) => ({ ...item, title: cleanAgendaTitle(item.title.replaceAll('\\n', '\n')) }))
+      const cleanAgendaItems = result.agendaItems.map((item) => ({ ...item, title: cleanAgendaTitle(item.title.replaceAll('\\n', '\n')).slice(0, 80) })).filter((item, index, items) => items.findIndex((candidate) => candidate.title.toLocaleLowerCase() === item.title.toLocaleLowerCase()) === index).slice(0, 4)
       setSuggestedAgenda(cleanAgendaItems)
+      setAgendaSuggestionSource(result.rationale.includes('Borrador disponible de inmediato') ? 'fallback' : 'model')
       if (!agendaDraftEditedRef.current) setNewMeetingForm((current) => ({ ...current, agenda: cleanAgendaItems.map((item) => item.title).join('\n') }))
     } catch {
       if (requestId === agendaRequestRef.current) setDataError('La minuta automática sigue en segundo plano; puedes editar el borrador disponible.')
@@ -235,9 +280,17 @@ export function IrisWorkspace({ user, meetings: initialMeetings }: { user: { nam
       if (requestId === agendaRequestRef.current) setAgendaSuggestionLoading(false)
     }
   }
-  function startFromScratch() { agendaDraftEditedRef.current = true; setSuggestedAgenda([]); setNewMeetingForm((current) => ({ ...current, agenda: '' })); setDataError(''); }
+  function startFromScratch() { agendaDraftEditedRef.current = true; setSuggestedAgenda([]); setAgendaSuggestionSource(null); setNewMeetingForm((current) => ({ ...current, agenda: '' })); setDataError(''); }
   function requestAgendaRegeneration() { if (newMeetingForm.agenda.trim() && !window.confirm('¿Reemplazar la minuta editada por una nueva sugerencia?')) return; agendaDraftEditedRef.current = false; void generateAgendaSuggestion(true) }
-  function advancePreMeeting() { if (preMeetingStep === 0 && newMeetingForm.title.trim()) void generateAgendaSuggestion(); setPreMeetingStep((step) => Math.min(4, step + 1)) }
+  function advancePreMeeting() {
+    if (preMeetingStep === 0 && newMeetingForm.title.trim()) void generateAgendaSuggestion()
+    if (preMeetingStep === 2 && !newMeetingForm.agenda.trim() && suggestedAgenda.length === 0) {
+      const draft = buildImmediateAgenda(newMeetingForm.title, newMeetingForm.objective, newMeetingForm.contextNotes)
+      agendaDraftEditedRef.current = true
+      setNewMeetingForm((current) => ({ ...current, agenda: draft.map((item) => item.title).join('\n') }))
+    }
+    setPreMeetingStep((step) => Math.min(4, step + 1))
+  }
   function retreatPreMeeting() { setPreMeetingStep((step) => Math.max(0, step - 1)) }
   async function createNewMeeting(event: React.FormEvent) { event.preventDefault(); if (preMeetingStep < 3) { advancePreMeeting(); return } await saveMeetingDraft(true) }
   const setAutoAnalysisLifecycle = (enabled: boolean, reason: 'meeting_started' | 'meeting_finalized' | 'meeting_loaded' | 'meeting_paused' | 'meeting_unselected') => { setAutoAnalysis(enabled); if (!enabled) { autoAnalysisRequestRef.current += 1; autoAnalysisInFlightRef.current = false; lastAnalyzedSegmentIdRef.current = null }; if (process.env.NODE_ENV !== 'production') console.log('[v0] AUTO_ANALYSIS_LIFECYCLE', { meetingId: selectedId, meetingStatus: selected?.status ?? null, enabled, reason }) }
@@ -245,6 +298,7 @@ export function IrisWorkspace({ user, meetings: initialMeetings }: { user: { nam
   const filteredSegments = useMemo(() => data.segments.filter((item) => item.text.toLocaleLowerCase().includes(query.toLocaleLowerCase())), [data.segments, query])
   const transcriptBlocks = useMemo(() => groupTranscriptSegments(data.segments.filter((item) => item.isFinal)), [data.segments])
   const liveCaption = interimTranscript.trim() || liveFinalSegments.at(-1)?.text || ''
+  const recommendedAgendaText = suggestedAgenda.map((item) => item.title).join('\n')
 
   useEffect(() => { sessionStateRef.current = session }, [session])
   useEffect(() => { if (data.meeting && newMeetingOpen && selected?.status === 'scheduled') setNewMeetingForm({ title: selected.title, objective: data.meeting.objective, contextNotes: data.meeting.contextNotes ?? '', agenda: data.agenda.slice().sort((a, b) => a.position - b.position).map((item) => item.title).join('\n') }) }, [data.meeting, data.agenda, newMeetingOpen, selected])
@@ -265,8 +319,12 @@ export function IrisWorkspace({ user, meetings: initialMeetings }: { user: { nam
     if (!newMeetingOpen || preMeetingStep !== 3 || newMeetingForm.agenda.trim() || suggestedAgenda.length > 0) return
     const draft = buildImmediateAgenda(newMeetingForm.title, newMeetingForm.objective, newMeetingForm.contextNotes)
     setSuggestedAgenda(draft)
-    if (!agendaDraftEditedRef.current) setNewMeetingForm((current) => ({ ...current, agenda: draft.map((item) => item.title).join('\n') }))
-  }, [newMeetingOpen, preMeetingStep, newMeetingForm.title, newMeetingForm.objective, newMeetingForm.contextNotes, newMeetingForm.agenda, suggestedAgenda.length])
+    setAgendaSuggestionSource('immediate')
+    if (!agendaDraftEditedRef.current) {
+      agendaDraftEditedRef.current = true
+      setNewMeetingForm((current) => ({ ...current, agenda: draft.map((item) => item.title).join('\n') }))
+    }
+  }, [newMeetingOpen, preMeetingStep, newMeetingForm.title, newMeetingForm.objective, newMeetingForm.contextNotes, newMeetingForm.agenda, agendaSuggestionLoading, suggestedAgenda.length])
   useEffect(() => { if (process.env.NODE_ENV !== 'production') void getIrisRuntimeDiagnosticsAction().then((diagnostics) => setRuntimeDiagnostics(diagnostics)).catch(() => setRuntimeDiagnostics(null)) }, [])
   useEffect(() => { listKnowledgeItems().then((items) => setKnowledge(items.map((item) => ({ ...item, source: item.source as KnowledgeItem['source'], sourceDate: item.sourceDate.toISOString() })))).catch(() => setKnowledge([])); void getVentanaCelesteStatus().then(setExternalStatus).catch(() => setExternalStatus('error')) }, [])
   useEffect(() => {
@@ -778,7 +836,7 @@ export function IrisWorkspace({ user, meetings: initialMeetings }: { user: { nam
 
 
     </div>
-    {newMeetingOpen && <div className="modal-backdrop" role="dialog" aria-modal="true" aria-labelledby="new-meeting-title"><div className="modal-card new-meeting-modal"><div className="modal-heading"><div><span className="eyebrow">ANTES DE ENTRAR A IRIS</span><h2 id="new-meeting-title">Nueva reunión</h2></div><button className="close-button" type="button" onClick={() => setNewMeetingOpen(false)} aria-label="Cerrar"><X size={18} /></button></div><form onSubmit={createNewMeeting}><div className="progress-step" key={preMeetingStep}>{preMeetingStep === 0 && <label><span className="step-question">¿Cómo se llama esta reunión?</span><div className="dictation-field"><input autoFocus required value={newMeetingForm.title} onChange={(event) => setNewMeetingForm((current) => ({ ...current, title: event.target.value }))} placeholder="Ej. Planificación piloto" /><button type="button" className={`dictation-button ${dictatingField === 'title' ? 'active' : ''}`} onClick={() => toggleFieldDictation('title')} aria-label="Dictar nombre de reunión" aria-pressed={dictatingField === 'title'}><Mic size={16} /></button></div></label>}{preMeetingStep === 1 && <label><span className="step-question">¿Qué quieres lograr?</span><div className="dictation-field"><textarea autoFocus rows={4} value={newMeetingForm.objective} onChange={(event) => setNewMeetingForm((current) => ({ ...current, objective: event.target.value }))} placeholder="Puedes dejarlo vacío" /><button type="button" className={`dictation-button ${dictatingField === 'objective' ? 'active' : ''}`} onClick={() => toggleFieldDictation('objective')} aria-label="Dictar objetivo" aria-pressed={dictatingField === 'objective'}><Mic size={16} /></button></div></label>}{preMeetingStep === 2 && <label><span className="step-question">¿Hay contexto previo que Iris deba conocer?</span><div className="dictation-field"><textarea autoFocus rows={4} value={newMeetingForm.contextNotes} onChange={(event) => setNewMeetingForm((current) => ({ ...current, contextNotes: event.target.value }))} placeholder="Opcional" /><button type="button" className={`dictation-button ${dictatingField === 'contextNotes' ? 'active' : ''}`} onClick={() => toggleFieldDictation('contextNotes')} aria-label="Dictar contexto previo" aria-pressed={dictatingField === 'contextNotes'}><Mic size={16} /></button></div></label>}{preMeetingStep === 3 && <div className="agenda-draft-editor"><span className="step-question">Minuta sugerida</span>{agendaSuggestionLoading && <p className="empty-hint" aria-live="polite">Iris está generando una sugerencia en segundo plano; puedes revisar y editar este borrador.</p>}{dataError && <p className="empty-hint" role="status">{dataError}</p>}<textarea className="agenda-textarea" rows={9} value={newMeetingForm.agenda} onChange={(event) => { agendaDraftEditedRef.current = true; setNewMeetingForm((current) => ({ ...current, agenda: event.target.value })) }} placeholder="Un punto de agenda por línea" aria-label="Minuta editable" /><div className="agenda-actions"><button type="button" className="edit-link" onClick={startFromScratch}>Empezar desde cero</button><button type="button" className="edit-link" onClick={requestAgendaRegeneration}>Regenerar sugerencia</button></div></div>}</div><div className="step-indicator"><span>{preMeetingStep + 1} de 4</span><div><i className={preMeetingStep >= 0 ? 'active' : ''} /><i className={preMeetingStep >= 1 ? 'active' : ''} /><i className={preMeetingStep >= 2 ? 'active' : ''} /><i className={preMeetingStep >= 3 ? 'active' : ''} /></div></div><div className="modal-actions"><button className="secondary-button" type="button" onClick={() => preMeetingStep === 0 ? setNewMeetingOpen(false) : retreatPreMeeting()}>{preMeetingStep === 0 ? 'Cancelar' : 'Atrás'}</button>{preMeetingStep < 3 ? <button className="primary-button" type="submit">Continuar</button> : <><button className="secondary-button" type="button" onClick={() => void saveMeetingDraft(false)} disabled={pending || !newMeetingForm.title.trim()}>{pending ? 'Guardando…' : 'Guardar borrador'}</button><button className="primary-button" type="submit" disabled={pending || !newMeetingForm.title.trim()}>{pending ? 'Iniciando…' : 'Iniciar reunión'}</button></>}</div></form></div></div>}
+    {newMeetingOpen && <div className="modal-backdrop" role="dialog" aria-modal="true" aria-labelledby="new-meeting-title"><div className="modal-card new-meeting-modal"><div className="modal-heading"><div><span className="eyebrow">ANTES DE ENTRAR A IRIS</span><h2 id="new-meeting-title">Nueva reunión</h2></div><button className="close-button" type="button" onClick={() => setNewMeetingOpen(false)} aria-label="Cerrar"><X size={18} /></button></div><form onSubmit={createNewMeeting}><div className="progress-step" key={preMeetingStep}>{preMeetingStep === 0 && <label><span className="step-question">¿Cómo se llama esta reunión?</span><div className="dictation-field"><input autoFocus required value={newMeetingForm.title} onChange={(event) => setNewMeetingForm((current) => ({ ...current, title: event.target.value }))} placeholder="Ej. Planificación piloto" /><button type="button" className={`dictation-button ${dictatingField === 'title' ? 'active' : ''}`} onClick={() => toggleFieldDictation('title')} aria-label="Dictar nombre de reunión" aria-pressed={dictatingField === 'title'}><Mic size={16} /></button></div></label>}{preMeetingStep === 1 && <label><span className="step-question">¿Qué quieres lograr?</span><div className="dictation-field"><textarea autoFocus rows={4} value={newMeetingForm.objective} onChange={(event) => setNewMeetingForm((current) => ({ ...current, objective: event.target.value }))} placeholder="Puedes dejarlo vacío" /><button type="button" className={`dictation-button ${dictatingField === 'objective' ? 'active' : ''}`} onClick={() => toggleFieldDictation('objective')} aria-label="Dictar objetivo" aria-pressed={dictatingField === 'objective'}><Mic size={16} /></button></div></label>}{preMeetingStep === 2 && <label><span className="step-question">¿Hay contexto previo que Iris deba conocer?</span><div className="dictation-field"><textarea autoFocus rows={4} value={newMeetingForm.contextNotes} onChange={(event) => setNewMeetingForm((current) => ({ ...current, contextNotes: event.target.value }))} placeholder="Opcional" /><button type="button" className={`dictation-button ${dictatingField === 'contextNotes' ? 'active' : ''}`} onClick={() => toggleFieldDictation('contextNotes')} aria-label="Dictar contexto previo" aria-pressed={dictatingField === 'contextNotes'}><Mic size={16} /></button></div></label>}{preMeetingStep === 3 && <div className="agenda-draft-editor"><span className="step-question">Minuta de reunión · hasta 4 temas</span>{agendaSuggestionLoading && <p className="empty-hint" aria-live="polite">La propuesta automática se genera en segundo plano. Esta agenda no cambiará sola mientras la revisas.</p>}{dataError && <p className="empty-hint" role="status">{dataError}</p>}<textarea className="agenda-textarea" rows={9} value={newMeetingForm.agenda} onChange={(event) => { agendaDraftEditedRef.current = true; setNewMeetingForm((current) => ({ ...current, agenda: event.target.value })) }} placeholder="Un punto de agenda por línea" aria-label="Minuta editable" /><div className="agenda-actions">{agendaSuggestionSource === 'model' && recommendedAgendaText && recommendedAgendaText !== newMeetingForm.agenda.trim() && <button type="button" className="secondary-button" onClick={() => { agendaDraftEditedRef.current = true; setNewMeetingForm((current) => ({ ...current, agenda: recommendedAgendaText })) }}>Aplicar propuesta de Iris</button>}<button type="button" className="edit-link" onClick={startFromScratch}>Empezar desde cero</button><button type="button" className="edit-link" onClick={requestAgendaRegeneration}>Regenerar sugerencia</button></div></div>}</div><div className="step-indicator"><span>{preMeetingStep + 1} de 4</span><div><i className={preMeetingStep >= 0 ? 'active' : ''} /><i className={preMeetingStep >= 1 ? 'active' : ''} /><i className={preMeetingStep >= 2 ? 'active' : ''} /><i className={preMeetingStep >= 3 ? 'active' : ''} /></div></div><div className="modal-actions"><button className="secondary-button" type="button" onClick={() => preMeetingStep === 0 ? setNewMeetingOpen(false) : retreatPreMeeting()}>{preMeetingStep === 0 ? 'Cancelar' : 'Atrás'}</button>{preMeetingStep < 3 ? <button className="primary-button" type="submit">Continuar</button> : <><button className="secondary-button" type="button" onClick={() => void saveMeetingDraft(false)} disabled={pending || !newMeetingForm.title.trim()}>{pending ? 'Guardando…' : 'Guardar borrador'}</button><button className="primary-button" type="submit" disabled={pending || !newMeetingForm.title.trim()}>{pending ? 'Iniciando…' : 'Iniciar reunión'}</button></>}</div></form></div></div>}
     {taskEditorOpen && <div className="modal-backdrop" role="presentation" onMouseDown={(event) => { if (event.target === event.currentTarget) setTaskEditorOpen(false) }}><form className="task-modal" onSubmit={submitTask} aria-label={taskDraft.id ? 'Editar tarea' : 'Nueva tarea'}><div className="task-modal-header"><div><span className="eyebrow accent">SEGUIMIENTO</span><h2>{taskDraft.id ? 'Editar tarea' : 'Nueva tarea'}</h2><p>Convierte este acuerdo en una acción clara.</p></div><button type="button" className="close-button" onClick={() => setTaskEditorOpen(false)} aria-label="Cerrar formulario"><X size={17} /></button></div><label className="task-field task-field-wide"><span>Qué hay que hacer <em>Obligatorio</em></span><input autoFocus value={taskDraft.text} onChange={(event) => setTaskDraft({ ...taskDraft, text: event.target.value })} placeholder="Ej. Compartir el resumen con el equipo" required /></label><div className="task-fields-row"><label className="task-field"><span>Responsable <small>Opcional</small></span><input value={taskDraft.assignee} onChange={(event) => setTaskDraft({ ...taskDraft, assignee: event.target.value })} placeholder="Nombre o equipo" /></label><label className="task-field"><span>Fecha límite <small>Opcional</small></span><input type="date" value={taskDraft.dueDate} onChange={(event) => setTaskDraft({ ...taskDraft, dueDate: event.target.value })} /></label></div><div className="task-modal-footer"><span><CircleHelp size={14} /> Podrás editarla después</span><button className="primary-button" disabled={pending}>{pending ? 'Guardando…' : taskDraft.id ? 'Guardar cambios' : 'Crear tarea'}</button></div></form></div>}
     <footer className="app-footer"><span>Iris · Reuniones con contexto</span><span>{user.email}</span></footer>
   </main>
