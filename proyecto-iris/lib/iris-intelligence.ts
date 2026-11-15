@@ -286,7 +286,12 @@ export async function analyzeMeetingForIntervention(meetingId: string, userId: s
   try {
     const output = await intelligenceProvider.analyze({ context, operation: 'intervention_analysis', transcriptCharacterCount: context.length, transcriptSegmentCount: window.count, knowledgeItemCount: relevantKnowledge.length })
     console.log('[v0] intervention analysis', { operation: 'intervention_analysis', provider: intelligenceProvider.provider, model: intelligenceProvider.model, latencyMs: Date.now() - startedAt, status: 'success', busy: false, timeout: false, transcriptSegmentCount: window.count, transcriptCharacterCount: window.chars, knowledgeItemCount: relevantKnowledge.length, shouldIntervene: output.shouldIntervene, type: output.type, level: output.level, confidence: output.confidence })
-    return output
+    const contextReferences = [
+      ...ventanaContext.records.slice(0, 3).map((item) => `Ventana Celeste · ${item.title}`),
+      ...relevantKnowledge.slice(0, 3).map((item) => `Memoria Iris · ${item.title}`),
+    ].slice(0, 6)
+    const provenance = contextReferences.length ? ` · Contexto disponible: ${contextReferences.join(' | ')}` : ''
+    return { ...output, reason: `${output.reason}${provenance}`.slice(0, 1000) }
   } catch (error) {
     console.error('[v0] intervention analysis failed', { operation: 'intervention_analysis', provider: intelligenceProvider.provider, model: intelligenceProvider.model, latencyMs: Date.now() - startedAt, status: 'error', busy: error instanceof IntelligenceProviderError && error.code === 'busy', timeout: error instanceof IntelligenceProviderError && error.code === 'timeout', transcriptSegmentCount: window.count, transcriptCharacterCount: window.chars, code: error instanceof IntelligenceProviderError ? error.code : 'provider_failure', error: error instanceof Error ? error.message : 'unknown error' })
     if (error instanceof IntelligenceProviderError) throw error
