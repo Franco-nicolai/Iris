@@ -96,7 +96,7 @@ export function extractCloudflareGeneratedContent(payload: unknown): string {
     if (typeof value !== 'object') return null
     const object = value as Record<string, unknown>
     if ('shouldIntervene' in object || 'should_intervene' in object) return { path, content: JSON.stringify(object) }
-    for (const [key, child] of Object.entries(object)) { const found = findContract(child, `${path}.${key}`, depth + 1); if (found) return found }
+    for (const [key, child] of Object.entries(object)) { if (/^(reasoning|reasoning_content|analysis|thinking)$/i.test(key)) continue; const found = findContract(child, `${path}.${key}`, depth + 1); if (found) return found }
     return null
   }
   const contract = findContract(payload, 'root')
@@ -271,7 +271,7 @@ export async function runCloudflareJsonRequest(input: { system: string; prompt: 
   const model = getCloudflareModel()
   if (!accountId || !apiToken) throw new IntelligenceProviderError('missing_credentials', 'Faltan credenciales de Cloudflare Workers AI.')
   const startedAt = Date.now()
-  const timeoutMs = input.operation === 'direct_question' ? Math.min(getIrisAiTimeoutMs(), 12_000) : getIrisAiTimeoutMs()
+  const timeoutMs = input.operation === 'direct_question' ? Math.min(getIrisAiTimeoutMs(), 35_000) : getIrisAiTimeoutMs()
   const controller = new AbortController()
   const abortForCaller = () => controller.abort()
   if (input.signal?.aborted) controller.abort()
