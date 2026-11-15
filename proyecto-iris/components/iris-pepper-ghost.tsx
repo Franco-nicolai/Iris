@@ -15,7 +15,7 @@ function stageName(level: PresentationLevel) {
 export function IrisPepperGhost({ activePresentation, layers, muted, onClose }: { activePresentation: Presentation; layers: PresentationLayer[]; muted: boolean; onClose: () => void }) {
   const level = activePresentation?.level
   const visibleLayers = level ? layers.filter((layer) => layer.level <= level) : []
-  const faceLayers = level === 2 ? visibleLayers.filter((layer) => layer.level === 2) : visibleLayers
+  const faceLayers = level === 1 ? [] : level === 2 ? visibleLayers.filter((layer) => layer.level === 2) : visibleLayers
   const accessibleSequence = visibleLayers.map((layer) => `N${layer.level}, ${stageName(layer.level)}: ${layer.content}`).join('. ')
 
   return <section className="pepper-ghost-overlay" role="dialog" aria-modal="true" aria-label={level ? `Modo pirámide de Iris, nivel ${level}` : 'Modo pirámide de Iris, en espera'}>
