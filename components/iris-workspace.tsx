@@ -7,6 +7,7 @@ import { Check, CircleHelp, FileText, Flag, Loader2, LogOut, Mic, Trash2, Pause,
 import { analyzeMeeting, analyzeMeetingForInterventionAction, closeIntervention, confirmExtractedCommitment, confirmExtractedDecision, confirmExtractedQuestion, confirmExtractedTask, createIntervention, finalizeMeetingAction, deleteAgendaItem, deleteMeeting, deleteKnowledgeItem, getIrisRuntimeDiagnosticsAction, getMeetingDetections, getMeetingSummary, updateMeetingSummary, getVentanaCelesteStatus, importVentanaCelesteItems, listVentanaCelesteContent, listKnowledgeItems, testVentanaCelesteConnection, previewVentanaCelesteImport, saveAgendaItem, deleteTask, listMeetingData, suggestMeetingAgendaAction, saveDecision, saveKnowledgeItem, saveMeeting, saveMeetingContext, saveTask, saveTranscriptSegment, runProactiveScenarioAction, updateSuggestion, updateTask } from '@/app/actions/iris'
 import { authClient } from '@/lib/auth-client'
 import { IrisPresentation, queueIrisSpeechChunk } from '@/components/iris-presentation'
+import { IrisOrbVisual } from '@/components/iris-orb-visual'
 import { IrisPepperGhost } from '@/components/iris-pepper-ghost'
 import { IrisSettings } from '@/components/iris-settings'
 import { detectDirectIrisInvocation, isIsolatedIrisWakeWord, normalizeDirectInvocationQuery, type DirectIrisResponse } from '@/lib/direct-invocation'
