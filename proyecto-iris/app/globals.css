@@ -998,3 +998,16 @@ main.iris-shell.workspace-open[data-workspace-tab="settings"] .knowledge-panel {
   .knowledge-settings-section .external-source-panel .knowledge-actions { justify-content: flex-start; }
   .knowledge-settings-section .knowledge-row { align-items: flex-start; flex-direction: column; }
 }
+
+/* Meeting controls: restore setup access and keep the finish action visible. */
+.top-nav { position: static; margin-left: auto; margin-right: 14px; flex-wrap: wrap; justify-content: flex-end; }
+.top-nav .new-meeting-nav { display: inline-flex; align-items: center; gap: 6px; border: 1px solid #d9dff8; background: #eef0ff; color: #4656c6; font-weight: 650; }
+.top-nav .new-meeting-nav:hover:not(:disabled) { background: #e2e6ff; color: #3546b5; }
+.top-nav .new-meeting-nav:disabled { opacity: .45; cursor: not-allowed; }
+.iris-shell:not(.workspace-open) .hero-column .session-controls .finish-meeting-button { display: inline-flex !important; align-items: center; justify-content: center; gap: 7px; border: 1px solid var(--iris-line); background: #fff; color: var(--iris-ink); }
+.iris-shell:not(.workspace-open) .hero-column .session-controls .finish-meeting-button:hover:not(:disabled) { background: #f5f6fc; }
+@media (max-width: 700px) {
+  .top-nav { gap: 2px; margin-right: 8px; }
+  .top-nav button { padding: 7px 8px; font-size: 10px; }
+  .top-nav .new-meeting-nav { gap: 4px; }
+}

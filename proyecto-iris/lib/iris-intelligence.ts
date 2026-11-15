@@ -193,6 +193,9 @@ function cleanSourceText(value: string) {
     .replace(/&amp;/gi, '&')
     .replace(/&quot;|&#34;/gi, '"')
     .replace(/&#39;|&apos;/gi, "'")
+    // VC records often prepend ingestion timestamps and system metadata.
+    .replace(/\b(?:created_at|updated_at|timestamp|fecha de (?:creaci[oó]n|actualizaci[oó]n)|hora de (?:creaci[oó]n|actualizaci[oó]n))\s*[:=]\s*[^,;|]+/gi, ' ')
+    .replace(/\b20\d{2}-\d{2}-\d{2}[T ]\d{2}:\d{2}(?::\d{2}(?:\.\d{1,3})?)?(?:Z|[+-]\d{2}:?\d{2})?\b/g, ' ')
     .replace(/\s+/g, ' ')
     .trim()
 }
@@ -444,12 +447,14 @@ export async function answerIrisMeetingQuestion(meetingId: string, userId: strin
       fallbackType: bestSource ? 'source_excerpt' : titleOnlySource ? 'title_only' : 'no_match',
     })
     if (bestSource) {
-      const sourceTitle = bestSource.record.title.slice(0, 180)
-      const excerpts = bestSource.matchingSentences.slice(0, 2).map(({ sentence }) => sentence)
-      let excerpt = excerpts.join(' ')
-      if (excerpt.length > 420) excerpt = `${excerpt.slice(0, 417).trimEnd()}…`
+      const sourceTitle = cleanSourceText(bestSource.record.title).slice(0, 120)
+      let excerpt = bestSource.matchingSentences[0].sentence
+      if (excerpt.length > 240) {
+        const cut = excerpt.slice(0, 237).lastIndexOf(' ')
+        excerpt = `${excerpt.slice(0, cut > 150 ? cut : 237).trimEnd()}…`
+      }
       return {
-        answer: `Encontré una coincidencia en ${sourceTitle}: “${excerpt}” No pude sintetizar el registro con IA ahora; este es el fragmento pertinente de la fuente.`,
+        answer: `Según ${sourceTitle}: ${excerpt}`,
         confidence: 0.62,
         evidence: [sourceTitle.slice(0, 290)],
         fallback: true,
