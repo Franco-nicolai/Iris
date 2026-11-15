@@ -136,7 +136,7 @@ export function parseCloudflareGeneratedJson(content: string): unknown {
         }
       }
     }
-    if (process.env.NODE_ENV !== 'production') console.warn('[v0] CLOUDFLARE_CONTENT_EXTRACTION', { selectedRoute: 'parser', contentLength: cleaned.length, startsWithBrace: cleaned.startsWith('{'), endsWithBrace: cleaned.endsWith('}'), hasMarkdownFence: /^```/i.test(content.trim()) })
+    console.warn('[v0] Cloudflare JSON parse failed', { contentLength: cleaned.length, startsWithBrace: cleaned.startsWith('{'), endsWithBrace: cleaned.endsWith('}'), hasMarkdownFence: /^```/i.test(content.trim()), containsOpeningObject: cleaned.includes('{'), containsClosingObject: cleaned.includes('}') })
     throw new IntelligenceProviderError('invalid_json', 'Cloudflare devolvió una respuesta que no es JSON válido.')
   }
 }
@@ -180,12 +180,13 @@ export function createMeetingIntelligenceProvider(): MeetingIntelligenceProvider
 function extractCloudflareStreamDelta(payload: unknown) {
   if (!payload || typeof payload !== 'object') return ''
   const root = payload as Record<string, unknown>
-  const choices = Array.isArray(root.choices) ? root.choices : []
+  const result = root.result && typeof root.result === 'object' ? root.result as Record<string, unknown> : undefined
+  const choices = Array.isArray(root.choices) ? root.choices : Array.isArray(result?.choices) ? result.choices : []
   const choice = choices[0] && typeof choices[0] === 'object' ? choices[0] as Record<string, unknown> : undefined
   const delta = choice?.delta && typeof choice.delta === 'object' ? choice.delta as Record<string, unknown> : undefined
   const message = choice?.message && typeof choice.message === 'object' ? choice.message as Record<string, unknown> : undefined
-  const result = root.result && typeof root.result === 'object' ? root.result as Record<string, unknown> : undefined
-  const candidates = [delta?.content, choice?.text, message?.content, result?.response, root.response]
+  const resultMessage = result?.message && typeof result.message === 'object' ? result.message as Record<string, unknown> : undefined
+  const candidates = [delta?.content, choice?.text, message?.content, resultMessage?.content, result?.response, root.response]
   return candidates.find((candidate): candidate is string => typeof candidate === 'string') || ''
 }
 
@@ -236,14 +237,18 @@ async function readCloudflareAnswerStream(response: Response, onAnswerDelta: (de
   let eventLines: string[] = []
   let generatedContent = ''
   let emittedAnswer = ''
+  let parsedEventCount = 0
+  let deltaChunkCount = 0
   const consumeEvent = () => {
     const data = eventLines.filter((line) => line.startsWith('data:')).map((line) => line.slice(5).replace(/^ /, '')).join(lineFeed)
     eventLines = []
     if (!data || data === '[DONE]') return
     let payload: unknown
     try { payload = JSON.parse(data) } catch { return }
+    parsedEventCount += 1
     const delta = extractCloudflareStreamDelta(payload)
     if (!delta) return
+    deltaChunkCount += 1
     generatedContent += delta
     const answer = extractPartialJsonStringField(generatedContent, 'answer')
     if (answer !== null && answer.length > emittedAnswer.length) {
@@ -266,7 +271,10 @@ async function readCloudflareAnswerStream(response: Response, onAnswerDelta: (de
   }
   if (bufferedLine) eventLines.push(bufferedLine.replace(carriageReturnAtEnd, ''))
   consumeEvent()
-  if (!generatedContent.trim()) throw new IntelligenceProviderError('invalid_json', 'Cloudflare no devolvió contenido generado.')
+  if (!generatedContent.trim()) {
+    console.warn('[v0] Cloudflare stream contained no generated content', { parsedEventCount, deltaChunkCount, contentLength: generatedContent.length })
+    throw new IntelligenceProviderError('invalid_json', 'Cloudflare no devolvió contenido generado.')
+  }
   return generatedContent
 }
 
@@ -290,7 +298,14 @@ export async function runCloudflareJsonRequest(input: { system: string; prompt: 
     if (response.status === 409 || response.status === 425) throw new IntelligenceProviderError('busy', 'Cloudflare Workers AI está ocupado y rechazó la solicitud rápidamente.')
     if (response.status === 429) { const body = await response.text().catch(() => ''); if (isCloudflareBusyBody(body)) throw cloudflareBusyError(); throw new IntelligenceProviderError('rate_limited', 'Cloudflare limitó temporalmente las solicitudes.') }
     if (!response.ok) { const body = await response.text().catch(() => ''); const diagnostic = sanitizeCloudflareError(response.status, body); console.warn('[v0] Cloudflare request failed', { status: response.status, diagnostic }); throw new IntelligenceProviderError('provider_failure', diagnostic) }
-    if (input.onAnswerDelta) return await readCloudflareAnswerStream(response, input.onAnswerDelta)
+    if (input.onAnswerDelta) {
+      const contentType = response.headers.get('content-type')?.toLocaleLowerCase() || ''
+      if (contentType.includes('text/event-stream')) return await readCloudflareAnswerStream(response, input.onAnswerDelta)
+      const generatedContent = extractCloudflareGeneratedContent(await response.json())
+      const parsed = parseCloudflareGeneratedJson(generatedContent)
+      if (parsed && typeof parsed === 'object' && typeof (parsed as { answer?: unknown }).answer === 'string') input.onAnswerDelta((parsed as { answer: string }).answer)
+      return generatedContent
+    }
     return extractCloudflareGeneratedContent(await response.json())
   } catch (error) {
     if (error instanceof IntelligenceProviderError) throw error
