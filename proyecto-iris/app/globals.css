@@ -963,7 +963,7 @@ main.iris-shell.workspace-open[data-workspace-tab="settings"] .interventions-vie
 .workspace-global-editor > label textarea { width: 100%; box-sizing: border-box; border: 1px solid var(--iris-line); border-radius: 9px; padding: 10px 12px; background: #fff; color: var(--iris-ink); font: 13px/1.5 system-ui, sans-serif; }
 .workspace-global-editor > label textarea { min-height: 74px; resize: vertical; }
 .workspace-global-editor > footer { display: flex; justify-content: flex-end; flex-wrap: wrap; gap: 8px; margin-top: 22px; padding-top: 16px; border-top: 1px solid var(--iris-line); }
-.iris-shell.settings-open .knowledge-panel { display: block !important; width: min(100%, 1160px); max-width: 1160px; margin: 22px auto 0; padding: clamp(18px, 3vw, 28px); border: 1px solid var(--iris-line); border-radius: 16px; background: #fff; box-shadow: 0 10px 30px #20212a08; }
+main.iris-shell.workspace-open[data-workspace-tab="settings"] .knowledge-panel { display: block !important; width: min(100%, 1160px); max-width: 1160px; margin: 22px auto 0; padding: clamp(18px, 3vw, 28px); border: 1px solid var(--iris-line); border-radius: 16px; background: #fff; box-shadow: 0 10px 30px #20212a08; }
 .iris-shell.settings-open .knowledge-panel > .panel-heading { display: grid; grid-template-columns: minmax(0, 1fr) minmax(260px, .9fr); gap: 18px; align-items: start; }
 .knowledge-inventory-summary { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 8px; }
 .knowledge-inventory-summary > div { display: grid; gap: 5px; padding: 12px; border: 1px solid var(--iris-line); border-radius: 10px; background: #fafbfe; }
