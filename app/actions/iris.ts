@@ -6,7 +6,7 @@ import { decisions, interventions, knowledgeItems, meetingAgendaItems, meetings,
 import { and, asc, desc, eq, ilike, inArray, or } from 'drizzle-orm'
 import { revalidatePath } from 'next/cache'
 import { z } from 'zod'
-import { analyzeMeetingForIntervention, answerIrisMeetingQuestion, detectionKey, extractIrisDetections, generateMeetingSummary, IntelligenceProviderError, suggestMeetingAgenda } from '@/lib/iris-intelligence'
+import { analyzeMeetingForIntervention, answerIrisMeetingQuestion, detectionKey, extractIrisDetections, generateMeetingSummary, prepareMeetingKnowledge, preparedMeetingKnowledgeSchema, suggestMeetingAgenda } from '@/lib/iris-intelligence'
 import { createMeetingIntelligenceProvider, getIrisRuntimeDiagnostics } from '@/lib/iris-provider'
 import { parseVentanaCelesteImport, parseVentanaCelesteText, type ParsedExternalKnowledge } from '@/lib/iris-knowledge-import'
 import { VentanaCelesteKnowledgeSource, getVentanaCelesteConnectionStatus } from '@/lib/ventana-celeste-source'
@@ -86,10 +86,27 @@ export async function suggestMeetingAgendaAction(input: unknown) {
   return suggestMeetingAgenda({ ...data, previousMeetings, pendingTasks, relevantDecisions, internalKnowledge, ventanaCeleste })
 }
 
+export async function prepareMeetingKnowledgeAction(input: unknown) {
+  const userId = await requireUserId()
+  const data = z.object({ title: z.string().trim().min(1).max(200), objective: z.string().trim().max(1000), contextNotes: z.string().trim().max(5000) }).parse(input)
+  return prepareMeetingKnowledge(data, userId)
+}
+
+export async function saveMeetingKnowledgeBriefAction(input: unknown) {
+  const userId = await requireUserId()
+  const data = z.object({ meetingId: idSchema, brief: preparedMeetingKnowledgeSchema }).parse(input)
+  await assertMeeting(userId, data.meetingId)
+  const [meeting] = await db.select({ status: meetings.status }).from(meetings).where(and(eq(meetings.id, data.meetingId), eq(meetings.userId, userId)))
+  if (!meeting || meeting.status === 'ended') return
+  const row = { id: data.meetingId + '-meeting-brief', userId, title: 'Guía temporal de reunión', content: JSON.stringify(data.brief), source: { type: 'meeting_brief', meetingId: data.meetingId }, sourceDate: new Date(), validity: 'current', permissions: { canView: false, canUseForSuggestions: true }, isDemo: false }
+  await db.insert(knowledgeItems).values(row).onConflictDoUpdate({ target: knowledgeItems.id, set: { title: row.title, content: row.content, source: row.source, sourceDate: row.sourceDate, validity: row.validity, permissions: row.permissions }, where: eq(knowledgeItems.userId, userId) })
+}
+
 export async function saveMeeting(input: unknown) {
   const userId = await requireUserId()
   const data = meetingInput.parse(input)
   await db.insert(meetings).values({ ...data, userId, endedAt: data.endedAt ?? null }).onConflictDoUpdate({ target: meetings.id, set: { title: data.title, objective: data.objective, contextNotes: data.contextNotes, endedAt: data.endedAt ?? null, status: data.status, participantNames: data.participantNames }, where: eq(meetings.userId, userId) })
+  if (data.status === 'ended') await db.delete(knowledgeItems).where(and(eq(knowledgeItems.id, data.id + '-meeting-brief'), eq(knowledgeItems.userId, userId)))
   revalidatePath('/')
 }
 
@@ -161,6 +178,7 @@ export async function deleteMeeting(input: unknown) {
     await tx.delete(suggestions).where(and(eq(suggestions.meetingId, meetingId), eq(suggestions.userId, userId)))
     await tx.delete(decisions).where(and(eq(decisions.meetingId, meetingId), eq(decisions.userId, userId)))
     await tx.delete(tasks).where(and(eq(tasks.meetingId, meetingId), eq(tasks.userId, userId)))
+    await tx.delete(knowledgeItems).where(and(eq(knowledgeItems.id, meetingId + '-meeting-brief'), eq(knowledgeItems.userId, userId)))
     await tx.delete(meetings).where(and(eq(meetings.id, meetingId), eq(meetings.userId, userId)))
   })
   revalidatePath('/')
@@ -260,7 +278,8 @@ export async function importVentanaCelesteItems(input: unknown) {
 
 export async function listKnowledgeItems() {
   const userId = await requireUserId()
-  return db.select().from(knowledgeItems).where(eq(knowledgeItems.userId, userId)).orderBy(desc(knowledgeItems.sourceDate))
+  const items = await db.select().from(knowledgeItems).where(eq(knowledgeItems.userId, userId)).orderBy(desc(knowledgeItems.sourceDate))
+  return items.filter((item) => (item.source as { type?: string } | null)?.type !== 'meeting_brief')
 }
 
 export async function saveKnowledgeItem(input: unknown) {
@@ -287,7 +306,7 @@ export async function analyzeMeetingForInterventionAction(input: unknown) {
   const userId = await requireUserId()
   const meetingId = idSchema.parse(input)
   if (process.env.NODE_ENV !== 'production') console.log('[v0] AUTO_ANALYSIS_MEETING_ID', { activeMeetingId: meetingId, actionMeetingId: meetingId })
-  try { return await analyzeMeetingForIntervention(meetingId, userId) } catch (error) { const reason = error instanceof IntelligenceProviderError ? error.message : 'No se pudo completar el análisis. Revisa la configuración del proveedor y los registros del servidor.'; console.error('[v0] intervention action degraded', { meetingId, code: error instanceof IntelligenceProviderError ? error.code : 'unexpected_error', error: error instanceof Error ? error.message : 'unknown' }); return { shouldIntervene: false, level: 0 as const, type: 'provider_unavailable', reason, content: '', confidence: 0, evidence: [] } }
+  try { return await analyzeMeetingForIntervention(meetingId, userId) } catch (error) { console.error('[v0] intervention action degraded', { meetingId, error: error instanceof Error ? error.message : 'unknown' }); return { shouldIntervene: false, level: 0 as const, type: 'provider_unavailable', reason: 'No se pudo completar el análisis; Iris permanece en silencio.', content: '', confidence: 0, evidence: [] } }
   }
 
 const proactiveScenarioInput = z.enum(['n1', 'n2'])
@@ -354,6 +373,7 @@ export async function finalizeMeetingAction(input: unknown) {
   const summaryId = `${meetingId}-summary`
   await db.transaction(async (tx) => {
     await tx.insert(meetingSummaries).values({ id: summaryId, userId, meetingId, summary: summary.summary, topics: summary.topics, keyPoints: summary.keyPoints, commitments: detections.commitments, openQuestions: detections.openQuestions, provider: diagnostics.provider, model: diagnostics.model }).onConflictDoUpdate({ target: meetingSummaries.id, set: { summary: summary.summary, topics: summary.topics, keyPoints: summary.keyPoints, commitments: detections.commitments, openQuestions: detections.openQuestions, provider: diagnostics.provider, model: diagnostics.model, updatedAt: new Date() }, where: eq(meetingSummaries.userId, userId) })
+    await tx.delete(knowledgeItems).where(and(eq(knowledgeItems.id, meetingId + '-meeting-brief'), eq(knowledgeItems.userId, userId)))
     for (const item of detections.tasks) { const id = extractionId(meetingId, 'task', item.text); await tx.insert(tasks).values({ id, userId, meetingId, text: item.text, assignee: item.assignee, dueDate: item.dueDate ? new Date(item.dueDate) : null, status: 'open' }).onConflictDoUpdate({ target: tasks.id, set: { text: item.text, assignee: item.assignee, dueDate: item.dueDate ? new Date(item.dueDate) : null }, where: eq(tasks.userId, userId) }) }
     for (const item of detections.decisions) { const id = extractionId(meetingId, 'decision', item.text); await tx.insert(decisions).values({ id, userId, meetingId, text: item.text, status: 'draft', confirmedByUser: false }).onConflictDoNothing({ target: decisions.id, where: eq(decisions.userId, userId) }) }
   })
@@ -375,7 +395,7 @@ export async function getMeetingDetections(input: unknown) {
     const detections = await extractIrisDetections(transcript)
     const [storedSummary] = await db.select({ id: meetingSummaries.id }).from(meetingSummaries).where(and(eq(meetingSummaries.meetingId, meetingId), eq(meetingSummaries.userId, userId)))
     if (storedSummary) await db.update(meetingSummaries).set({ commitments: detections.commitments, openQuestions: detections.openQuestions, updatedAt: new Date() }).where(and(eq(meetingSummaries.id, storedSummary.id), eq(meetingSummaries.userId, userId)))
-   %20else await db.insert(meetingSummaries).values({ id: `${meetingId}-summary`, userId, meetingId, summary: 'Minuta pendiente de generación.', commitments: detections.commitments, openQuestions: detections.openQuestions })
+    else await db.insert(meetingSummaries).values({ id: `${meetingId}-summary`, userId, meetingId, summary: 'Minuta pendiente de generación.', commitments: detections.commitments, openQuestions: detections.openQuestions })
     if (process.env.NODE_ENV !== 'production') console.log('[v0] POST_MEETING_EXTRACTION', { meetingId, transcriptSegmentCount: finalSegments.length, transcriptCharacterCount: transcript.length, provider: diagnostics.provider, model: diagnostics.model, latencyMs: Date.now() - startedAt, tasksCount: detections.tasks.length, decisionsCount: detections.decisions.length, commitmentsCount: detections.commitments.length, openQuestionsCount: detections.openQuestions.length, status: 'success', validationStatus: 'validated', containsDecisionKeyword: /decisi[oó]n/i.test(transcript), containsTaskKeyword: /tarea/i.test(transcript) })
     return detections
   } catch (error) {
