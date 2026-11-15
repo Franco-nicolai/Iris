@@ -5,7 +5,7 @@ import { useEffect, useRef } from 'react'
 export type PresentationLevel = 1 | 2 | 3
 export type IrisPresentationData = { source: 'ai' | 'manual' | 'simulation' | 'direct'; level: PresentationLevel; content: string; type: string; createdAt: string; visualState: string }
 
-type IrisPresentationProps = { activePresentation: IrisPresentationData | null; irisVisualState: string; muted: boolean; speechContent?: string; renderContent?: boolean; onViewMain?: () => void; preview?: boolean; workspaceOpen?: boolean; ambientModeVisible?: boolean; session?: string; onPause?: () => void; onMute?: () => void; onFinish?: () => void; speakEnabled?: boolean }
+type IrisPresentationProps = { activePresentation: IrisPresentationData | null; irisVisualState: string; muted: boolean; speechContent?: string; renderContent?: boolean; preview?: boolean; workspaceOpen?: boolean; ambientModeVisible?: boolean; session?: string; onPause?: () => void; onMute?: () => void; onFinish?: () => void; speakEnabled?: boolean }
 
 function createIrisUtterance(content: string, synthesis: SpeechSynthesis) {
   const utterance = new SpeechSynthesisUtterance(content)
@@ -34,7 +34,7 @@ export function speakIrisIntervention(content: string) {
   return queueIrisSpeechChunk(content)
 }
 
-export function IrisPresentation({ activePresentation, irisVisualState, muted, speechContent, renderContent = true, onViewMain, preview = false, workspaceOpen = false, ambientModeVisible = true, session, onPause, onMute, onFinish, speakEnabled = true }: IrisPresentationProps) {
+export function IrisPresentation({ activePresentation, irisVisualState, muted, speechContent, renderContent = true, preview = false, workspaceOpen = false, ambientModeVisible = true, session, onPause, onMute, onFinish, speakEnabled = true }: IrisPresentationProps) {
   const spokenPresentationRef = useRef<string | null>(null)
   useEffect(() => { if (activePresentation && process.env.NODE_ENV !== 'production') console.log('[v0] PRESENTATION_RENDERED', { level: activePresentation.level, visualState: activePresentation.visualState, workspaceOpen, ambientModeVisible }) }, [activePresentation, ambientModeVisible, workspaceOpen])
   useEffect(() => {
@@ -51,6 +51,5 @@ export function IrisPresentation({ activePresentation, irisVisualState, muted, s
   if (!activePresentation || !renderContent) return null
   return <div className={`iris-presentation ${preview ? 'iris-presentation-preview' : ''} ${state} iris-presentation-level-${level}`} data-presentation-level={level} role={level === 1 ? 'status' : undefined} aria-live={level === 3 ? 'assertive' : 'polite'}>
     <div className="iris-presentation-message"><span className="iris-presentation-label">IRIS · {level === 1 ? 'SEÑAL' : `NIVEL ${level}`}</span><p>{activePresentation.content}</p></div>
-    {onViewMain && <button type="button" className="secondary-button" onClick={onViewMain}>Ver en Main</button>}
   </div>
 }
