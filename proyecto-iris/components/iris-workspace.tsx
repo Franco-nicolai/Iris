@@ -523,7 +523,6 @@ export function IrisWorkspace({ user, meetings: initialMeetings }: { user: { nam
     const startedAt = Date.now()
     let firstDeltaAt: number | null = null
     let streamedAnswer = ''
-    let pendingSpeech = ''
     const streamedResponseRef = { current: null as DirectIrisResponse | null }
     setDirectInvocation({ query: resolvedInvocation.query, status: 'answering', latencyMs: null, answer: '', spoken: false, presented: false })
     const pendingPresentation: SuggestedIntervention = { shouldIntervene: true, level: 1, type: 'generic', reason: `Consulta directa: ${resolvedInvocation.query}`, content: 'Iris está consultando Ventana Celeste y las reuniones anteriores.', confidence: 1, evidence: [] }
@@ -532,29 +531,6 @@ export function IrisWorkspace({ user, meetings: initialMeetings }: { user: { nam
     setIrisVisualState(irisMutedRef.current ? 'muted' : 'analyzing')
     addDiagnosticEvent(`DIRECT INVOCATION detected: ${resolvedInvocation.query}`)
     if (!irisMutedRef.current) { window.speechSynthesis?.cancel(); queueIrisSpeechChunk('Ya lo reviso.') }
-    const flushSpeech = (flushAll = false) => {
-      if (irisMutedRef.current) { pendingSpeech = ''; return }
-      while (pendingSpeech.length) {
-        const punctuation = /[.!?;:](?:\s|$)/.exec(pendingSpeech)
-        if (punctuation && punctuation.index + 1 >= 24) {
-          const end = punctuation.index + 1
-          const chunk = pendingSpeech.slice(0, end).trim()
-          pendingSpeech = pendingSpeech.slice(end).trimStart()
-          if (chunk) queueIrisSpeechChunk(chunk)
-          continue
-        }
-        if (pendingSpeech.length >= 36) {
-          let end = pendingSpeech.slice(0, 36).lastIndexOf(' ')
-          if (end < 24) end = 36
-          const chunk = pendingSpeech.slice(0, end).trim()
-          pendingSpeech = pendingSpeech.slice(end).trimStart()
-          if (chunk) queueIrisSpeechChunk(chunk)
-          continue
-        }
-        break
-      }
-      if (flushAll && pendingSpeech.trim()) { queueIrisSpeechChunk(pendingSpeech.trim()); pendingSpeech = '' }
-    }
     const receiveStreamBlock = (block: string) => {
       const dataLine = block.split('\n').find((line) => line.startsWith('data:'))
       if (!dataLine) return
@@ -562,8 +538,6 @@ export function IrisWorkspace({ user, meetings: initialMeetings }: { user: { nam
       if (event.type === 'delta' && typeof event.delta === 'string') {
         if (firstDeltaAt === null) firstDeltaAt = Date.now()
         streamedAnswer += event.delta
-        pendingSpeech += event.delta
-        flushSpeech()
         setDirectInvocation((current) => ({ ...current, answer: streamedAnswer }))
       } else if (event.type === 'final' && event.answer && typeof event.answer.answer === 'string') streamedResponseRef.current = event.answer
       else if (event.type === 'error') throw new Error(event.message || 'No se pudo completar la respuesta de Iris.')
@@ -592,17 +566,20 @@ export function IrisWorkspace({ user, meetings: initialMeetings }: { user: { nam
       const finalResponse = streamedResponseRef.current
       if (!finalResponse) throw new Error('Iris terminó la respuesta sin un resultado validado.')
       const responseLatency = Date.now() - startedAt
-      if (streamedAnswer && finalResponse.answer.startsWith(streamedAnswer.trim())) pendingSpeech += finalResponse.answer.slice(streamedAnswer.trim().length)
-      else if (!streamedAnswer) pendingSpeech = finalResponse.answer
-      else { window.speechSynthesis?.cancel(); pendingSpeech = finalResponse.answer }
-      flushSpeech(true)
       const suggestion = { shouldIntervene: true, level: 3 as const, type: 'generic' as const, reason: `Solicitud directa: ${resolvedInvocation.query}`, content: finalResponse.answer, confidence: finalResponse.confidence, evidence: finalResponse.evidence }
-      const sourceLayer: ActivePresentation = { source: 'direct', level: 2, type: 'generic', content: `Contexto encontrado: ${finalResponse.evidence.join(', ') || 'información disponible de la reunión'}`, createdAt: new Date().toISOString(), visualState: 'interventionLevel2' }
+      const sourceLayer: ActivePresentation = { source: 'direct', level: 2, type: 'generic', content: finalResponse.answer, createdAt: new Date().toISOString(), visualState: 'interventionLevel2' }
       setPyramidState((current) => ({ ...current, layers: [...current.layers.filter((layer) => layer.level < 2), sourceLayer], speechContent: null }))
-      presentIntervention('direct', suggestion, 'interventionLevel3')
+      const message = { ...suggestion, level: 2 as const }
+      presentIntervention('direct', message, 'interventionLevel2')
+      if (!irisMutedRef.current) window.speechSynthesis?.cancel()
+      window.setTimeout(() => {
+        if (requestController.signal.aborted) return
+        presentIntervention('direct', suggestion, 'interventionLevel3')
+        if (!irisMutedRef.current) queueIrisSpeechChunk(finalResponse.answer)
+      }, 1300)
       setDirectInvocation({ query: resolvedInvocation.query, status: 'success', latencyMs: responseLatency, answer: finalResponse.answer, spoken: !irisMutedRef.current, presented: true })
       armFollowUp(resolvedInvocation.query, finalResponse.answer)
-      addDiagnosticEvent(`DIRECT ANSWER presented level=3 spoken=${!irisMutedRef.current}`)
+      addDiagnosticEvent(`DIRECT ANSWER presented level=2 → 3 spoken=${!irisMutedRef.current}`)
       if (process.env.NODE_ENV !== 'production') console.log('[v0] DIRECT_STREAM_METRICS', { latencyMs: responseLatency, timeToFirstTextMs: firstDeltaAt ? firstDeltaAt - startedAt : null, mode: followUpValid ? 'follow_up' : mode })
       void createIntervention({ ...suggestion, id: crypto.randomUUID(), meetingId: actionMeetingId, source: 'ai' }).then(() => refreshData()).catch((error) => { console.error('[v0] direct intervention persistence failed', error); addDiagnosticEvent('DIRECT ANSWER persistence failed') })
     } catch (error) {
