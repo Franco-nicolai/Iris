@@ -744,3 +744,39 @@ main.iris-shell.workspace-open[data-workspace-tab="settings"] .interventions-vie
 .analytics-interventions .analytics-meeting-name { display: block; margin: 3px 0; color: var(--iris-accent); font-size: 10px; }
 .knowledge-intro { margin: -7px 0 0; max-width: 620px; color: var(--iris-muted); font-size: 12px; line-height: 1.5; }
 .live-analysis-error { margin: 0; max-width: 560px; color: #9b3f36; font-size: 12px; line-height: 1.45; }
+
+/* Workspace views are mounted one at a time; these rules only style the active surface. */
+.iris-shell.workspace-open .workspace { display: block; min-height: 0; padding: 24px clamp(24px, 4vw, 64px) 64px; background: var(--iris-canvas); }
+.iris-shell.workspace-open[data-workspace-tab="knowledge"] .knowledge-panel { display: block !important; }
+.iris-shell.workspace-open[data-workspace-tab="knowledge"] .knowledge-panel,
+.iris-shell.workspace-open[data-workspace-tab="summary"] .workspace-inline-document,
+.iris-shell.workspace-open[data-workspace-tab="summary"] .workspace-global-editor,
+.iris-shell.workspace-open[data-workspace-tab="transcript"] .meeting-sheet,
+.iris-shell.workspace-open[data-workspace-tab="agenda"] .meeting-sheet,
+.iris-shell.workspace-open[data-workspace-tab="interventions"] .interventions-view { grid-column: 1 / -1; width: min(100%, 1060px); margin-inline: auto; }
+.iris-shell.workspace-open[data-workspace-tab="settings"] { display: block; }
+.iris-shell.workspace-open[data-workspace-tab="settings"] .settings-view { width: min(100%, 1160px); margin: 0 auto; padding: 34px clamp(20px, 4vw, 64px) 64px; background: var(--iris-canvas); }
+.iris-shell.workspace-open .meeting-sheet { display: block !important; }
+.iris-shell.workspace-open .transcript-row { grid-template-columns: 68px 92px minmax(0, 1fr); gap: 12px; align-items: start; }
+.iris-shell.workspace-open .transcript-row p { min-width: 0; overflow-wrap: anywhere; }
+.iris-shell.workspace-open .primary-button,
+.iris-shell.workspace-open .secondary-button,
+.iris-shell.workspace-open .danger-button { min-height: 38px; border-radius: 9px; font-weight: 600; }
+.iris-shell.workspace-open .primary-button { background: var(--iris-accent); color: #fff; }
+.iris-shell.workspace-open .secondary-button { border: 1px solid var(--iris-line); background: #fff; color: var(--iris-ink); }
+.iris-shell.workspace-open .secondary-button:hover { border-color: #c8cde8; background: #f5f6ff; }
+.iris-shell.workspace-open .history-menu-button { color: #747887; }
+.iris-shell.workspace-open .history-menu-button:hover { color: #a33d4a; background: #fff1f2; }
+@media (max-width: 760px) {
+  .iris-shell.workspace-open .workspace { padding: 18px 14px 48px; }
+  .iris-shell.workspace-open[data-workspace-tab="settings"] .settings-view { padding: 22px 14px 48px; }
+  .iris-shell.workspace-open .transcript-row { grid-template-columns: 48px 76px minmax(0, 1fr); gap: 8px; }
+}
+
+.iris-shell.workspace-open[data-workspace-tab="settings"] .settings-view { display: block !important; grid-column: 1 / -1; }
+.iris-shell.workspace-open[data-workspace-tab="knowledge"] .knowledge-panel { grid-column: 2; }
+.iris-shell.workspace-open[data-workspace-tab="transcript"] .sheet-transcript,
+.iris-shell.workspace-open[data-workspace-tab="agenda"] .sheet-agenda { display: block !important; }
+.iris-shell.workspace-open[data-workspace-tab="interventions"] .interventions-view { display: block !important; }
+.iris-shell.workspace-open.settings-open { display: block; }
+.iris-shell.workspace-open.settings-open .meeting-history { display: none !important; }
