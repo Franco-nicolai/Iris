@@ -285,7 +285,7 @@ main.iris-shell.workspace-open[data-workspace-tab="settings"] .interventions-vie
 
 .pepper-ghost-exit { z-index: 5; width: 42px; height: 42px; opacity: .78; }
 .pepper-ghost-scene { position: relative; display: grid; place-items: center; width: min(88vmin, 760px); aspect-ratio: 1; }
-.pepper-ghost-faces { position: absolute; inset: 0; display: grid; width: 100%; height: 100%; grid-template-columns: repeat(3, minmax(0, 1fr)); grid-template-rows: repeat(3, minmax(0, 1fr)); gap: 0; pointer-events: none; }
+.pepper-ghost-faces { position: absolute; z-index: 3; inset: 0; display: grid; width: 100%; height: 100%; grid-template-columns: repeat(3, minmax(0, 1fr)); grid-template-rows: repeat(3, minmax(0, 1fr)); gap: 0; pointer-events: none; }
 .pepper-ghost-face { position: relative; inset: auto; display: grid; place-items: center; width: auto; height: auto; min-width: 0; min-height: 0; overflow: hidden; transform: none; }
 .pepper-ghost-face-north { grid-area: 1 / 2; top: auto; right: auto; bottom: auto; left: auto; transform: none; }
 .pepper-ghost-face-east { grid-area: 2 / 3; top: auto; right: auto; bottom: auto; left: auto; transform: none; }
@@ -341,12 +341,14 @@ main.iris-shell.workspace-open[data-workspace-tab="settings"] .interventions-vie
 .pepper-ghost-face-east .pepper-ghost-face-projection { transform: rotate(90deg); }
 .pepper-ghost-face-south .pepper-ghost-face-projection { transform: rotate(180deg); }
 .pepper-ghost-face-west .pepper-ghost-face-projection { transform: rotate(270deg); }
-.pepper-ghost-directional-eye { position: relative; display: grid; flex: none; place-items: center; width: clamp(128px, 15vmin, 184px); aspect-ratio: 1; }
+.pepper-ghost-directional-eye { position: relative; display: grid; flex: none; place-items: center; width: clamp(122px, 15vmin, 168px); aspect-ratio: 1; }
 .pepper-ghost-directional-eye::before { position: absolute; z-index: 1; top: 50%; left: 50%; width: 14%; aspect-ratio: 1; border-radius: 50%; background: #050509; content: ''; transform: translate(-50%, -50%); }
 .pepper-ghost-image { display: block; width: 100%; height: 100%; object-fit: contain; opacity: 1; mix-blend-mode: screen; filter: drop-shadow(0 0 10px #47cfff55); animation: none !important; transition: none; }
 .pepper-ghost-scene-n2 .pepper-ghost-image, .pepper-ghost-scene-n3 .pepper-ghost-image { opacity: 1; mix-blend-mode: screen; animation: none !important; }
 .pepper-ghost-gaze-marker { position: absolute; z-index: 2; top: 35%; left: 50%; width: 9%; aspect-ratio: 1; border: 1px solid #d7faff; border-radius: 50%; background: radial-gradient(circle at 38% 35%, #ffffff 0 14%, #a5efff 28%, #21bfff 72%, #0786c5 100%); box-shadow: 0 0 12px #56d6ffb3; transform: translate(-50%, -50%); }
-.pepper-ghost-scene-n3 .pepper-ghost-directional-eye { width: clamp(104px, 11vmin, 144px); }
+.pepper-ghost-scene-n2 .pepper-ghost-face-projection,
+.pepper-ghost-scene-n3 .pepper-ghost-face-projection { grid-template-columns: minmax(0, 46%) minmax(0, 1fr); justify-items: stretch; align-items: center; gap: 3px; }
+.pepper-ghost-scene-n3 .pepper-ghost-directional-eye { width: clamp(88px, 10vmin, 112px); }
 .pepper-ghost-scene-n1 .pepper-ghost-gaze-marker,
 .pepper-ghost-scene-n2 .pepper-ghost-gaze-marker,
 .pepper-ghost-scene-n3 .pepper-ghost-gaze-marker { width: 22%; box-shadow: 0 0 18px 6px #56d6ffb3, 0 0 44px 14px #21bfff66; animation: pepper-pyramid-beacon 1.8s ease-in-out infinite; }
@@ -385,7 +387,7 @@ main.iris-shell.workspace-open[data-workspace-tab="settings"] .interventions-vie
 .pepper-ghost-face-stage { display: grid; gap: 3px; min-width: 0; padding: 4px 6px; border-left: 1px solid #72d7ff99; border-radius: 0 5px 5px 0; background: #ffffff08; }
 .pepper-ghost-face-stage > span { display: block; color: #9ce7ff; font: 700 8px/1.2 Arial, sans-serif; letter-spacing: .08em; }
 .pepper-ghost-face-stage p { display: -webkit-box; margin: 0; overflow: hidden; color: #f3f8ff; font: 500 13px/1.3 Arial, sans-serif; -webkit-box-orient: vertical; -webkit-line-clamp: 2; overflow-wrap: anywhere; }
-.pepper-ghost-scene-n3 .pepper-ghost-face-stage p { font-size: 10px; line-height: 1.15; }
+.pepper-ghost-scene-n3 .pepper-ghost-face-stage p { font-size: 9px; line-height: 1.12; -webkit-line-clamp: 2; }
 .pepper-ghost-face .pepper-ghost-signal-dot { width: 30px; height: 30px; margin: 0; animation: none !important; box-shadow: 0 0 26px 10px #71d8ffad; }
 .pepper-ghost-scene-idle .pepper-ghost-center { width: min(52%, 300px); }
 @media (max-width: 600px) {
@@ -395,8 +397,9 @@ main.iris-shell.workspace-open[data-workspace-tab="settings"] .interventions-vie
   .pepper-ghost-center .pepper-ghost-eyebrow { font-size: 7px; letter-spacing: .1em; }
   .pepper-ghost-center .pepper-ghost-hint { font-size: 8px; }
   .pepper-ghost-face-projection { gap: 3px; }
-  .pepper-ghost-directional-eye { width: clamp(68px, 18vw, 92px); }
-  .pepper-ghost-scene-n3 .pepper-ghost-directional-eye { width: clamp(56px, 15vw, 76px); }
+  .pepper-ghost-directional-eye { width: clamp(58px, 16vw, 78px); }
+  .pepper-ghost-scene-n2 .pepper-ghost-directional-eye { width: clamp(50px, 14vw, 66px); }
+  .pepper-ghost-scene-n3 .pepper-ghost-directional-eye { width: clamp(42px, 12vw, 54px); }
   .pepper-ghost-scene-n1 .pepper-ghost-signals .pepper-ghost-signal-dot,
   .pepper-ghost-scene-n2 .pepper-ghost-face .pepper-ghost-signal-dot,
   .pepper-ghost-scene-n3 .pepper-ghost-face .pepper-ghost-signal-dot { width: clamp(38px, 10vw, 54px); height: clamp(38px, 10vw, 54px); box-shadow: 0 0 24px 11px #71d8ffbd, 0 0 48px 18px #39bfff55; }
@@ -405,7 +408,7 @@ main.iris-shell.workspace-open[data-workspace-tab="settings"] .interventions-vie
   .pepper-ghost-face-stage > span { font-size: 7px; }
   .pepper-ghost-face-stage p { font-size: 10px; line-height: 1.15; -webkit-line-clamp: 3; }
   .pepper-ghost-scene-n3 .pepper-ghost-face-copy { gap: 2px; }
-  .pepper-ghost-scene-n3 .pepper-ghost-face-stage p { font-size: 9px; line-height: 1.1; -webkit-line-clamp: 3; }
+  .pepper-ghost-scene-n3 .pepper-ghost-face-stage p { font-size: 7px; line-height: 1.05; -webkit-line-clamp: 2; }
 }
 
 .pepper-ghost-center {
