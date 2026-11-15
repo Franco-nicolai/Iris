@@ -1,5 +1,5 @@
 export type SpeechRecognitionResultLike = { isFinal: boolean; 0: { transcript: string } }
-export type SpeechRecognitionEventLike = { results: ArrayLike<SpeechRecognitionResultLike> }
+export type SpeechRecognitionEventLike = { resultIndex?: number; results: ArrayLike<SpeechRecognitionResultLike> }
 export type SpeechRecognitionErrorCode = 'not-allowed' | 'service-not-allowed' | 'audio-capture' | 'network' | 'no-speech' | 'aborted' | string
 
 type RecognitionLike = {
@@ -57,7 +57,7 @@ export class WebSpeechTranscriptionProvider {
     this.recognition.maxAlternatives = 1
     this.recognition.onresult = (event) => {
       let interim = ''
-      for (let index = 0; index < event.results.length; index += 1) {
+      for (let index = event.resultIndex ?? 0; index < event.results.length; index += 1) {
         const result = event.results[index]
         const text = result[0]?.transcript.trim()
         if (!text) continue
