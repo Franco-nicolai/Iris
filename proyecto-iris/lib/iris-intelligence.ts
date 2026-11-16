@@ -223,9 +223,35 @@ function sourceSentences(value: string) {
 
 function cleanFallbackExcerpt(value: string, query: string) {
   const source = cleanSourceText(value)
-  const summaryField = source.match(/(?:^|\s)(?:summary|resumen|minuta|descripci[oó]n|contenido)\s*:\s*(.+)$/i)
-  if (summaryField) return cleanDirectAnswer(summaryField[1], query)
-  if (/\b(?:date|title|sub|who|owner|summary|created_at|updated_at)\s*:/i.test(source)) return ''
+  const fields = new Map<string, string>()
+  const labels = /\b(date|fecha|title|t[ií]tulo|sub|who|responsable|owner|assignee|summary|resumen|minuta|description|descripci[oó]n|content|contenido|task|tarea|objective|objetivo|goal|meta|decision|decisi[oó]n|agreement|acuerdo|action|acci[oó]n|status|estado|due date|duedate|plazo)\s*:\s*/gi
+  const matches = [...source.matchAll(labels)]
+  for (let index = 0; index < matches.length; index += 1) {
+    const match = matches[index]
+    const key = (match[1] || '').toLocaleLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '').replace(/\s+/g, ' ')
+    const valueStart = (match.index || 0) + match[0].length
+    const valueEnd = index + 1 < matches.length ? matches[index + 1].index || source.length : source.length
+    const fieldValue = source.slice(valueStart, valueEnd).trim().replace(/^[,;| -]+|[,;| -]+$/g, '')
+    if (fieldValue) fields.set(key, fieldValue)
+  }
+
+  const asksOwner = /\b(?:qui[eé]n|responsable|encargad[oa])\b/i.test(query)
+  const asksDate = /\b(?:cu[aá]ndo|fecha|plazo|d[ií]a|mes|año)\b/i.test(query)
+  const asksTask = /\b(?:tarea|pendiente|acci[oó]n)\b/i.test(query)
+  const asksObjective = /\b(?:objetivo|meta|prop[oó]sito)\b/i.test(query)
+  const asksDecision = /\b(?:decisi[oó]n|acuerdo|acordamos)\b/i.test(query)
+  const candidates = asksOwner ? ['who', 'responsable', 'owner', 'assignee']
+    : asksDate ? ['due date', 'duedate', 'plazo', 'fecha', 'date']
+    : asksTask ? ['task', 'tarea', 'action', 'accion', 'description', 'descripción', 'summary', 'resumen']
+    : asksObjective ? ['objective', 'objetivo', 'goal', 'meta', 'summary', 'resumen']
+    : asksDecision ? ['decision', 'agreement', 'acuerdo', 'summary', 'resumen']
+    : ['summary', 'resumen', 'description', 'content', 'contenido', 'task', 'tarea', 'decision', 'acuerdo']
+  const selected = candidates.map((key) => fields.get(key)).find(Boolean)
+  if (selected) {
+    const prefix = asksOwner ? 'La persona responsable es ' : asksTask ? 'La tarea registrada es ' : asksObjective ? 'El objetivo registrado es ' : asksDecision ? 'El acuerdo registrado es ' : ''
+    return cleanDirectAnswer(prefix + selected, query)
+  }
+  if (fields.size > 0) return ''
   return cleanDirectAnswer(source, query)
 }
 
@@ -582,7 +608,7 @@ export async function answerIrisMeetingQuestion(meetingId: string, userId: strin
       const sourceTitle = cleanSourceText(bestSource.record.title).slice(0, 120)
       const excerpt = cleanFallbackExcerpt(bestSource.matchingSentences[0].sentence, query)
       if (!excerpt) return {
-        answer: 'Encontré un registro relacionado, pero no pude sintetizarlo de forma confiable. ¿Qué dato específico necesitas?',
+        answer: 'No encontré un campo que responda con suficiente precisión. Prueba preguntando por el objetivo, la tarea, el acuerdo, la persona responsable o la fecha.',
         confidence: 0.2,
         evidence: [sourceTitle.slice(0, 290)],
         fallback: true,
