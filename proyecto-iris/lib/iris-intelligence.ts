@@ -406,11 +406,11 @@ export async function analyzeMeetingForIntervention(meetingId: string, userId: s
 }
 
 function asksCurrentMeetingMinutes(query: string) {
-  return /\\b(?:minuta|agenda)\\b/i.test(query)
+  return /\b(?:minuta|agenda)\b/i.test(query)
 }
 
 function explicitlyAsksAboutPastMeetings(query: string) {
-  return /\\b(?:reuniones?\\s+(?:anteriores|pasadas|previas)|reuni[oó]n\\s+(?:anterior|pasada|previa)|\\u00faltima\\s+reuni[oó]n|reuniones?\\s+previas)\\b/i.test(query)
+  return /\b(?:reuniones?\s+(?:anteriores|pasadas|previas)|reuni[oó]n\s+(?:anterior|pasada|previa)|última\s+reunión|reuniones?\s+previas)\b/i.test(query)
 }
 
 export async function answerIrisMeetingQuestion(meetingId: string, userId: string, query: string, previousExchange?: { user: string; iris: string }, options: { onAnswerDelta?: (delta: string) => void; signal?: AbortSignal } = {}): Promise<DirectIrisResponse> {
