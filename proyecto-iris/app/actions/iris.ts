@@ -156,6 +156,21 @@ export async function listUserMeetings() {
   return db.select().from(meetings).where(eq(meetings.userId, userId))
 }
 
+export async function getMeetingPrismState(input: unknown) {
+  const userId = await requireUserId()
+  const meetingId = idSchema.parse(input)
+  await assertMeeting(userId, meetingId)
+  const [[meeting], agendaRows, interventionRows] = await Promise.all([
+    db.select({ title: meetings.title, status: meetings.status }).from(meetings).where(and(eq(meetings.id, meetingId), eq(meetings.userId, userId))),
+    db.select({ id: meetingAgendaItems.id, title: meetingAgendaItems.title, status: meetingAgendaItems.status, position: meetingAgendaItems.position }).from(meetingAgendaItems).where(and(eq(meetingAgendaItems.meetingId, meetingId), eq(meetingAgendaItems.userId, userId))).orderBy(asc(meetingAgendaItems.position)),
+    db.select({ id: interventions.id, level: interventions.level, type: interventions.type, content: interventions.content, createdAt: interventions.createdAt }).from(interventions).where(and(eq(interventions.meetingId, meetingId), eq(interventions.userId, userId), eq(interventions.status, 'active'))).orderBy(desc(interventions.createdAt)).limit(1),
+  ])
+  const latest = interventionRows[0]
+  const expiresAfterMs = latest?.level === 1 ? 4500 : latest?.level === 2 ? 7000 : 10000
+  const intervention = latest && Date.now() - latest.createdAt.getTime() <= expiresAfterMs ? latest : null
+  return { meeting, activeAgenda: agendaRows.find((item) => item.status === 'active') ?? null, intervention }
+}
+
 export async function listMeetingData(input: unknown) {
   const userId = await requireUserId()
   const meetingId = idSchema.parse(input)
