@@ -242,7 +242,7 @@ function cleanFallbackExcerpt(value: string, query: string) {
   const asksDecision = /\b(?:decisi[oó]n|acuerdo|acordamos)\b/i.test(query)
   const candidates = asksOwner ? ['who', 'responsable', 'owner', 'assignee']
     : asksDate ? ['due date', 'duedate', 'plazo', 'fecha', 'date']
-    : asksTask ? ['task', 'tarea', 'action', 'accion', 'description', 'descripción', 'summary', 'resumen']
+    : asksTask ? ['task', 'tarea', 'action', 'accion', 'description', 'descripcion', 'summary', 'resumen']
     : asksObjective ? ['objective', 'objetivo', 'goal', 'meta', 'summary', 'resumen']
     : asksDecision ? ['decision', 'agreement', 'acuerdo', 'summary', 'resumen']
     : ['summary', 'resumen', 'description', 'content', 'contenido', 'task', 'tarea', 'decision', 'acuerdo']
@@ -276,9 +276,9 @@ function cleanDirectAnswer(value: string, query: string) {
   answer = answer.replace(/\b(?:seg[uú]n|de acuerdo con) (?:ventana celeste|memoria iris|la base de datos|los registros)\s*[:,]?\s*/gi, '').replace(/\s+/g, ' ').trim()
   const sentences = (answer.match(/[^.!?]+[.!?]?/g) || [answer]).map((sentence) => sentence.trim()).filter(Boolean)
   answer = sentences.slice(0, 2).join(' ')
-  if (answer.length > 260) {
-    const cut = answer.slice(0, 257).lastIndexOf(' ')
-    answer = `${answer.slice(0, cut > 180 ? cut : 257).trimEnd()}…`
+  if (answer.length > 560) {
+    const cut = answer.slice(0, 557).lastIndexOf(' ')
+    answer = `${answer.slice(0, cut > 500 ? cut : 557).trimEnd()}…`
   }
   return answer
 }
@@ -589,7 +589,7 @@ export async function answerIrisMeetingQuestion(meetingId: string, userId: strin
     if (/no (?:pude|logr[eé]) sintetizar|no puedo sintetizar|no logré estructurar/i.test(parsed.data.answer)) {
       throw new IntelligenceProviderError('invalid_schema', 'El modelo no sintetizó la fuente; se usará la respuesta respaldada por los datos.')
     }
-    const hasRawFields = /(?:^|\s)(?:date|title|sub|who|summary)\s*:/i.test(parsed.data.answer)
+    const hasRawFields = /(?:^|\s)(?:date|fecha|title|t[ií]tulo|sub|who|responsable|summary|resumen|task|tarea|objective|objetivo|goal|meta|decision|decisi[oó]n|agreement|acuerdo)\s*:/i.test(parsed.data.answer)
     const structuredAnswer = hasRawFields ? cleanFallbackExcerpt(parsed.data.answer, query) : ''
     if (hasRawFields && !structuredAnswer) throw new IntelligenceProviderError('invalid_schema', 'La respuesta contiene campos de registro sin sintetizar.')
     const answer = structuredAnswer || cleanDirectAnswer(parsed.data.answer, query)
