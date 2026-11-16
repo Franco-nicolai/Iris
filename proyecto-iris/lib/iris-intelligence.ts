@@ -589,7 +589,7 @@ export async function answerIrisMeetingQuestion(meetingId: string, userId: strin
     if (/no (?:pude|logr[eé]) sintetizar|no puedo sintetizar|no logré estructurar/i.test(parsed.data.answer)) {
       throw new IntelligenceProviderError('invalid_schema', 'El modelo no sintetizó la fuente; se usará la respuesta respaldada por los datos.')
     }
-    const hasRawFields = /(?:^|\\s)(?:date|title|sub|who|summary)\\s*:/i.test(parsed.data.answer)
+    const hasRawFields = /(?:^|\s)(?:date|title|sub|who|summary)\s*:/i.test(parsed.data.answer)
     const structuredAnswer = hasRawFields ? cleanFallbackExcerpt(parsed.data.answer, query) : ''
     if (hasRawFields && !structuredAnswer) throw new IntelligenceProviderError('invalid_schema', 'La respuesta contiene campos de registro sin sintetizar.')
     const answer = structuredAnswer || cleanDirectAnswer(parsed.data.answer, query)
