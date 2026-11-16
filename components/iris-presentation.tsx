@@ -6,6 +6,7 @@ export type PresentationLevel = 1 | 2 | 3
 export type IrisPresentationData = { source: 'ai' | 'manual' | 'simulation' | 'direct'; level: PresentationLevel; content: string; type: string; createdAt: string; visualState: string }
 
 type IrisPresentationProps = { activePresentation: IrisPresentationData | null; irisVisualState: string; muted: boolean; speechContent?: string; renderContent?: boolean; preview?: boolean; workspaceOpen?: boolean; ambientModeVisible?: boolean; session?: string; onPause?: () => void; onMute?: () => void; onFinish?: () => void; speakEnabled?: boolean }
+type IrisSpeechCallbacks = { onStart?: () => void; onError?: (error: string) => void }
 
 function createIrisUtterance(content: string, synthesis: SpeechSynthesis) {
   const spokenContent = content
@@ -30,9 +31,21 @@ function createIrisUtterance(content: string, synthesis: SpeechSynthesis) {
   return utterance
 }
 
-export function queueIrisSpeechChunk(content: string) {
+export function queueIrisSpeechChunk(content: string, callbacks: IrisSpeechCallbacks = {}) {
   if (typeof window === 'undefined' || !content.trim() || !window.speechSynthesis) return false
-  window.speechSynthesis.speak(createIrisUtterance(content, window.speechSynthesis))
+  const synthesis = window.speechSynthesis
+  const utterance = createIrisUtterance(content, synthesis)
+  utterance.onstart = () => callbacks.onStart?.()
+  utterance.onerror = (event) => {
+    if (event.error !== 'canceled' && event.error !== 'interrupted') callbacks.onError?.(event.error || 'speech_error')
+  }
+  try {
+    synthesis.resume()
+    synthesis.speak(utterance)
+  } catch (error) {
+    callbacks.onError?.(error instanceof Error ? error.message : 'speech_unavailable')
+    return false
+  }
   return true
 }
 

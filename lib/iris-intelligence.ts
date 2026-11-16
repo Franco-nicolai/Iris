@@ -353,7 +353,11 @@ function validateInterventionGrounding(output: SuggestedIntervention, input: { o
     const overlap = [...claimTerms].filter((term) => sourceTerms.has(term)).length
     return overlap >= Math.min(2, claimTerms.size)
   })
-  if (!claimGrounded) return { allowed: false, reason: 'claim_not_supported_by_cited_source' }
+  const asksTaskClarification = output.type === 'pending_task'
+    && /[¿?]/.test(output.content)
+    && /\b(que|cual|como|entregable|accion|paso|tarea|concreto|especific)/i.test(output.content.normalize('NFD').replace(/[\u0300-\u036f]/g, ''))
+    && matchedSources.some((source) => /\b(tarea|pendiente|compromiso|acordamos|quedamos|hacer|preparar|revisar|definir|enviar|mandar|entregar|avanzar|resolver|implementar)\b/i.test(source))
+  if (!claimGrounded && !asksTaskClarification) return { allowed: false, reason: 'claim_not_supported_by_cited_source' }
   if (output.type === 'off_topic') {
     const topicTerms = terms(`${input.objective} ${input.agenda.map((item) => item.title).join(' ')}`)
     if (topicTerms.size < 2 || input.recentTranscript.length < 3) return { allowed: false, reason: 'off_topic_missing_topic_or_three_turns' }
