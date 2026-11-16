@@ -179,8 +179,19 @@ const VENTANA_CONCEPT_ALIASES: Record<string, string[]> = {
   cliente: ['usuario', 'consumidor', 'segmento'],
 }
 
+function retrievalTerms(value: string) {
+  const result = terms(value)
+  const tokens = value.toLocaleLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '').split(/[^a-z0-9]+/).filter((term) => term.length > 3 && !STOP_WORDS.has(term))
+  for (const token of tokens) {
+    if (token.endsWith('iones') && token.length > 6) result.add(token.slice(0, -5) + 'ion')
+    if (token.endsWith('es') && token.length > 5) result.add(token.slice(0, -2))
+    if (token.endsWith('s') && token.length > 4) result.add(token.slice(0, -1))
+  }
+  return result
+}
+
 function expandVentanaTerms(value: string) {
-  const source = terms(value)
+  const source = retrievalTerms(value)
   const expanded = new Set(source)
   for (const term of source) for (const alias of VENTANA_CONCEPT_ALIASES[term] || []) expanded.add(alias)
   return expanded
@@ -283,12 +294,12 @@ function validateInterventionGrounding(output: SuggestedIntervention, input: { o
 async function getRelevantVentanaForQuery(query: string, supportingContext = '') {
   try {
     const records = await fetchVentanaCelesteKnowledge()
-    const directTerms = terms(query).filter((term) => !['ventana', 'celeste', 'conocimiento', 'informacion', 'registro', 'reunion'].includes(term))
+    const directTerms = [...retrievalTerms(query)].filter((term) => !['ventana', 'celeste', 'conocimiento', 'informacion', 'registro', 'reunion'].includes(term))
     const expandedTerms = expandVentanaTerms(query)
     const contextTerms = expandVentanaTerms(supportingContext)
     const scored = records.map((record, index) => {
-      const titleTerms = terms(record.title)
-      const contentTerms = terms(cleanSourceText(record.content))
+      const titleTerms = retrievalTerms(record.title)
+      const contentTerms = retrievalTerms(cleanSourceText(record.content))
       const aliasTitleTerms = expandVentanaTerms(record.title)
       const aliasContentTerms = expandVentanaTerms(record.content)
       const directTitleMatches = directTerms.filter((term) => titleTerms.has(term)).length
@@ -457,7 +468,7 @@ export async function answerIrisMeetingQuestion(meetingId: string, userId: strin
     const topics = [...new Set((preparedTopics.length ? preparedTopics : agendaRows.map((item) => item.title)).map((topic) => topic.trim()).filter(Boolean))]
     if (!topics.length) return { answer: 'La minuta de esta reunión todavía no está disponible.', confidence: 0.98, evidence: ['Agenda de la reunión actual'], fallback: false }
     return {
-      answer: 'Minuta de “' + meeting.title + '”:\\n' + topics.slice(0, 7).map((topic, index) => (index + 1) + '. ' + topic.slice(0, 76)).join('\\n'),
+      answer: 'Minuta de “' + meeting.title + '”:\n' + topics.slice(0, 7).map((topic, index) => (index + 1) + '. ' + topic.slice(0, 76)).join('\n'),
       confidence: 0.99,
       evidence: [preparedTopics.length ? 'Guía preparada de la reunión actual' : 'Agenda de la reunión actual'],
       fallback: false,
@@ -569,11 +580,11 @@ export async function answerIrisMeetingQuestion(meetingId: string, userId: strin
 
 async function getRelevantKnowledgeForQuery(meetingId: string, userId: string, query: string) {
   const [items] = await Promise.all([db.select().from(knowledgeItems).where(eq(knowledgeItems.userId, userId)).orderBy(desc(knowledgeItems.sourceDate)).limit(100)])
-  const queryTerms = terms(query)
+  const queryTerms = retrievalTerms(query)
   return items.filter((item) => item.validity !== 'superseded' && Boolean((item.permissions as { canUseForSuggestions?: boolean } | null)?.canUseForSuggestions ?? true)).map((item) => {
     const source = item.source as { meetingId?: string } | null
-    const itemTitleTerms = terms(item.title)
-    const itemContentTerms = terms(item.content)
+    const itemTitleTerms = retrievalTerms(item.title)
+    const itemContentTerms = retrievalTerms(item.content)
     const titleMatches = [...queryTerms].filter((term) => itemTitleTerms.has(term)).length
     const contentMatches = [...queryTerms].filter((term) => itemContentTerms.has(term)).length
     const relatedMeeting = source?.meetingId === meetingId
