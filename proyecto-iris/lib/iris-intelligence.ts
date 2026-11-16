@@ -340,9 +340,9 @@ async function getRelevantVentanaForQuery(query: string, supportingContext = '')
       const directContentMatches = directTerms.filter((term) => contentTerms.has(term)).length
       const aliasMatches = [...expandedTerms].filter((term) => !directTerms.includes(term) && (aliasTitleTerms.has(term) || aliasContentTerms.has(term))).length
       const contextMatches = [...contextTerms].filter((term) => aliasTitleTerms.has(term) || aliasContentTerms.has(term)).length
-      const taskIntent = /\\b(?:tareas?|pendientes?|acciones\\s+pendientes)\\b/i.test(query)
-      const decisionIntent = /\\b(?:decisiones?|acuerdos?|compromisos?)\\b/i.test(query)
-      const minutesIntent = /\\b(?:minuta|agenda|reuni[oó]n)\\b/i.test(query)
+      const taskIntent = /\b(?:tareas?|pendientes?|acciones\s+pendientes)\b/i.test(query)
+      const decisionIntent = /\b(?:decisiones?|acuerdos?|compromisos?)\b/i.test(query)
+      const minutesIntent = /\b(?:minuta|agenda|reuni[oó]n)\b/i.test(query)
       const typeMatchesIntent = (taskIntent && record.type === 'task') ||
         (decisionIntent && ['decision', 'agreement'].includes(record.type)) ||
         (minutesIntent && record.type === 'minute')
