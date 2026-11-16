@@ -49,7 +49,6 @@ export async function POST(request: Request) {
       }
       void answerIrisMeetingQuestion(input.meetingId, userId, input.query, input.previousExchange, {
         signal: abortController.signal,
-        onAnswerDelta: (delta) => send({ type: 'delta', delta }),
       }).then((answer) => send({ type: 'final', answer }))
         .catch(() => send({ type: 'error', message: 'No se pudo completar la respuesta de Iris.' }))
         .finally(() => {
