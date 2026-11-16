@@ -150,21 +150,6 @@ export async function updateSuggestion(input: unknown) {
   revalidatePath('/')
 }
 
-export async function deleteMeeting(input: unknown) {
-  const userId = await requireUserId()
-  const meetingId = idSchema.parse(input)
-  await assertMeeting(userId, meetingId)
-  await db.transaction(async (tx) => {
-    await tx.delete(transcriptSegments).where(and(eq(transcriptSegments.meetingId, meetingId), eq(transcriptSegments.userId, userId)))
-    await tx.delete(interventions).where(and(eq(interventions.meetingId, meetingId), eq(interventions.userId, userId)))
-    await tx.delete(meetingAgendaItems).where(and(eq(meetingAgendaItems.meetingId, meetingId), eq(meetingAgendaItems.userId, userId)))
-    await tx.delete(suggestions).where(and(eq(suggestions.meetingId, meetingId), eq(suggestions.userId, userId)))
-    await tx.delete(decisions).where(and(eq(decisions.meetingId, meetingId), eq(decisions.userId, userId)))
-    await tx.delete(tasks).where(and(eq(tasks.meetingId, meetingId), eq(tasks.userId, userId)))
-    await tx.delete(meetings).where(and(eq(meetings.id, meetingId), eq(meetings.userId, userId)))
-  })
-  revalidatePath('/')
-}
 
 export async function listUserMeetings() {
   const userId = await requireUserId()
