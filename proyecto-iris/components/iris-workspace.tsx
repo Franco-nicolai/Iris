@@ -716,7 +716,7 @@ export function IrisWorkspace({ user, meetings: initialMeetings }: { user: { nam
     let streamedAnswer = ''
     const streamedResponseRef = { current: null as DirectIrisResponse | null }
     setDirectInvocation({ query: resolvedInvocation.query, status: 'answering', latencyMs: null, answer: '', spoken: false, presented: false })
-    const pendingPresentation: SuggestedIntervention = { shouldIntervene: true, level: 1, type: 'generic', reason: `Consulta directa: ${resolvedInvocation.query}`, content: 'Iris está consultando Ventana Celeste y las reuniones anteriores.', confidence: 1, evidence: [] }
+    const pendingPresentation: SuggestedIntervention = { shouldIntervene: true, level: 1, type: 'generic', reason: `Consulta directa: ${resolvedInvocation.query}`, content: 'Iris está preparando una respuesta.', confidence: 1, evidence: [] }
     presentIntervention('direct', pendingPresentation, 'signal')
     const previousExchange = followUpValid && followUp ? { user: followUp.user, iris: followUp.iris } : undefined
     setIrisVisualState(irisMutedRef.current ? 'muted' : 'analyzing')
