@@ -405,9 +405,36 @@ export async function analyzeMeetingForIntervention(meetingId: string, userId: s
   }
 }
 
+function asksCurrentMeetingMinutes(query: string) {
+  return /\\b(?:minuta|agenda)\\b/i.test(query)
+}
+
+function explicitlyAsksAboutPastMeetings(query: string) {
+  return /\\b(?:reuniones?\\s+(?:anteriores|pasadas|previas)|reuni[oó]n\\s+(?:anterior|pasada|previa)|\\u00faltima\\s+reuni[oó]n|reuniones?\\s+previas)\\b/i.test(query)
+}
+
 export async function answerIrisMeetingQuestion(meetingId: string, userId: string, query: string, previousExchange?: { user: string; iris: string }, options: { onAnswerDelta?: (delta: string) => void; signal?: AbortSignal } = {}): Promise<DirectIrisResponse> {
-  const [meeting] = await db.select({ objective: meetings.objective, contextNotes: meetings.contextNotes }).from(meetings).where(and(eq(meetings.id, meetingId), eq(meetings.userId, userId)))
+  const [meeting] = await db.select({ title: meetings.title, objective: meetings.objective, contextNotes: meetings.contextNotes }).from(meetings).where(and(eq(meetings.id, meetingId), eq(meetings.userId, userId)))
   if (!meeting) throw new Error('Meeting not found')
+  if (asksCurrentMeetingMinutes(query)) {
+    const [agendaRows, briefRows] = await Promise.all([
+      db.select({ title: meetingAgendaItems.title }).from(meetingAgendaItems).where(and(eq(meetingAgendaItems.meetingId, meetingId), eq(meetingAgendaItems.userId, userId))).orderBy(asc(meetingAgendaItems.position)),
+      db.select({ content: knowledgeItems.content }).from(knowledgeItems).where(and(eq(knowledgeItems.id, meetingId + '-meeting-brief'), eq(knowledgeItems.userId, userId))).limit(1),
+    ])
+    let preparedTopics: string[] = []
+    try {
+      const parsed = briefRows[0] ? JSON.parse(briefRows[0].content) as { topics?: unknown } : null
+      if (Array.isArray(parsed?.topics)) preparedTopics = parsed.topics.filter((topic): topic is string => typeof topic === 'string' && topic.trim().length > 0).slice(0, 10)
+    } catch { preparedTopics = [] }
+    const topics = [...new Set((preparedTopics.length ? preparedTopics : agendaRows.map((item) => item.title)).map((topic) => topic.trim()).filter(Boolean))]
+    if (!topics.length) return { answer: 'La minuta de esta reunión todavía no está disponible.', confidence: 0.98, evidence: ['Agenda de la reunión actual'], fallback: false }
+    return {
+      answer: 'La minuta de “' + meeting.title + '” contempla: ' + topics.map((topic, index) => (index + 1) + ') ' + topic).join('; ') + '.',
+      confidence: 0.99,
+      evidence: [preparedTopics.length ? 'Guía preparada de la reunión actual' : 'Agenda de la reunión actual'],
+      fallback: false,
+    }
+  }
   const historicalQuery = [query, previousExchange?.user || '', previousExchange?.iris || ''].join(' ')
   const [agenda, transcript, decisionsRows, tasksRows, relevantKnowledge, ventanaContext, pastMeetingRecords, preparedBriefRows] = await Promise.all([
     db.select().from(meetingAgendaItems).where(and(eq(meetingAgendaItems.meetingId, meetingId), eq(meetingAgendaItems.userId, userId))).orderBy(asc(meetingAgendaItems.position)),
@@ -416,7 +443,7 @@ export async function answerIrisMeetingQuestion(meetingId: string, userId: strin
     db.select({ text: tasks.text, assignee: tasks.assignee, status: tasks.status }).from(tasks).where(and(eq(tasks.meetingId, meetingId), eq(tasks.userId, userId))),
     getRelevantKnowledgeForQuery(meetingId, userId, query),
     getRelevantVentanaForQuery(query, [meeting.objective, previousExchange?.user || '', previousExchange?.iris || ''].join(' ')),
-    getRelevantPastMeetingRecords(userId, meetingId, historicalQuery),
+    explicitlyAsksAboutPastMeetings(query) ? getRelevantPastMeetingRecords(userId, meetingId, historicalQuery) : Promise.resolve([] as Array<{ title: string; content: string }>),
     db.select().from(knowledgeItems).where(and(eq(knowledgeItems.id, meetingId + '-meeting-brief'), eq(knowledgeItems.userId, userId))).limit(1),
   ])
   const preparedBrief = preparedBriefRows[0]
