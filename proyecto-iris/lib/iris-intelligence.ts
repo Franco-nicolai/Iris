@@ -340,8 +340,14 @@ async function getRelevantVentanaForQuery(query: string, supportingContext = '')
       const directContentMatches = directTerms.filter((term) => contentTerms.has(term)).length
       const aliasMatches = [...expandedTerms].filter((term) => !directTerms.includes(term) && (aliasTitleTerms.has(term) || aliasContentTerms.has(term))).length
       const contextMatches = [...contextTerms].filter((term) => aliasTitleTerms.has(term) || aliasContentTerms.has(term)).length
-      const score = directTitleMatches * 12 + directContentMatches * 3 + aliasMatches * 0.5 + Math.min(contextMatches, 4) * 0.1
-      const qualified = directTerms.length > 0 && (directTitleMatches > 0 || directContentMatches >= Math.min(2, directTerms.length))
+      const taskIntent = /\\b(?:tareas?|pendientes?|acciones\\s+pendientes)\\b/i.test(query)
+      const decisionIntent = /\\b(?:decisiones?|acuerdos?|compromisos?)\\b/i.test(query)
+      const minutesIntent = /\\b(?:minuta|agenda|reuni[oó]n)\\b/i.test(query)
+      const typeMatchesIntent = (taskIntent && record.type === 'task') ||
+        (decisionIntent && ['decision', 'agreement'].includes(record.type)) ||
+        (minutesIntent && record.type === 'minute')
+      const score = directTitleMatches * 12 + directContentMatches * 3 + aliasMatches * 0.5 + Math.min(contextMatches, 4) * 0.1 + (typeMatchesIntent ? 6 : 0)
+      const qualified = directTerms.length > 0 && (directTitleMatches > 0 || directContentMatches >= Math.min(2, directTerms.length) || typeMatchesIntent)
       return { record, index, directTitleMatches, directContentMatches, contextMatches, score, qualified }
     }).sort((a, b) => b.score - a.score || a.index - b.index)
     const selected = scored.filter(({ qualified }) => qualified).slice(0, MAX_RELEVANT_VENTANA).map(({ record }) => record)
@@ -456,7 +462,10 @@ export async function analyzeMeetingForIntervention(meetingId: string, userId: s
 }
 
 function asksCurrentMeetingMinutes(query: string) {
-  return /\b(?:minuta|agenda)\b/i.test(query) && !explicitlyAsksAboutPastMeetings(query)
+  return /\b(?:minuta|agenda)\b/i.test(query) &&
+    !explicitlyAsksAboutPastMeetings(query) &&
+    !asksVentanaSource(query) &&
+    !asksIrisMemorySource(query)
 }
 
 function asksVentanaSource(query: string) {
@@ -468,12 +477,18 @@ function asksIrisMemorySource(query: string) {
 }
 
 function asksMeetingObjective(query: string) {
-  return /\bobjetivo\b/i.test(query) && !explicitlyAsksAboutPastMeetings(query) && !/\b(?:ventana\s+celeste|memoria|proyecto|iniciativa)\b/i.test(query)
+  return /\bobjetivo\b/i.test(query) &&
+    !explicitlyAsksAboutPastMeetings(query) &&
+    !asksVentanaSource(query) &&
+    !asksIrisMemorySource(query) &&
+    !/\b(?:proyecto|iniciativa)\b/i.test(query)
 }
 
 function asksCurrentMeetingTasks(query: string) {
   return /\b(?:tareas?|pendientes?|acciones\s+pendientes)\b/i.test(query) &&
-    !/\b(?:ventana\s+celeste|memoria|base\s+de\s+conocimiento|reuni[oó]n\s+(?:anterior|pasada|previa)|anteriormente|previamente)\b/i.test(query)
+    !explicitlyAsksAboutPastMeetings(query) &&
+    !asksVentanaSource(query) &&
+    !asksIrisMemorySource(query)
 }
 
 function explicitlyAsksAboutPastMeetings(query: string) {
