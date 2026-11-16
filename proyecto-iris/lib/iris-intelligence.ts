@@ -221,6 +221,14 @@ function sourceSentences(value: string) {
     .filter((sentence) => sentence.length >= 24)
 }
 
+function cleanFallbackExcerpt(value: string, query: string) {
+  const source = cleanSourceText(value)
+  const summaryField = source.match(/(?:^|\s)(?:summary|resumen|minuta|descripci[oó]n|contenido)\s*:\s*(.+)$/i)
+  if (summaryField) return cleanDirectAnswer(summaryField[1], query)
+  if (/\b(?:date|title|sub|who|owner|summary|created_at|updated_at)\s*:/i.test(source)) return ''
+  return cleanDirectAnswer(source, query)
+}
+
 function cleanDirectAnswer(value: string, query: string) {
   const asksForDate = /\b(cu[aá]ndo|qu[eé] fecha|fecha|plazo|vencimiento|vigencia|d[ií]a|mes|año)\b/i.test(query)
   let answer = value
@@ -435,7 +443,7 @@ function asksCurrentMeetingTasks(query: string) {
 }
 
 function explicitlyAsksAboutPastMeetings(query: string) {
-  return /\b(?:reuniones?\s+(?:anteriores|pasadas|previas)|reuni[oó]n\s+(?:anterior|pasada|previa)|última\s+reunión|reuniones?\s+previas)\b/i.test(query)
+  return /\b(?:reuniones?\s+(?:anteriores|pasadas|previas)|reuni[oó]n\s+(?:anterior|pasada|previa)|última\s+reunión|reuniones?\s+previas|anteriormente|previamente|lo\s+que\s+(?:hablamos|conversamos)|qu[eé]\s+(?:hab[ií]amos|se)\s+(?:hablado|conversado)\s+antes)\b/i.test(query)
 }
 
 export async function answerIrisMeetingQuestion(meetingId: string, userId: string, query: string, previousExchange?: { user: string; iris: string }, options: { onAnswerDelta?: (delta: string) => void; signal?: AbortSignal } = {}): Promise<DirectIrisResponse> {
@@ -558,13 +566,15 @@ export async function answerIrisMeetingQuestion(meetingId: string, userId: strin
     })
     if (bestSource) {
       const sourceTitle = cleanSourceText(bestSource.record.title).slice(0, 120)
-      let excerpt = bestSource.matchingSentences[0].sentence
-      if (excerpt.length > 240) {
-        const cut = excerpt.slice(0, 237).lastIndexOf(' ')
-        excerpt = `${excerpt.slice(0, cut > 150 ? cut : 237).trimEnd()}…`
+      const excerpt = cleanFallbackExcerpt(bestSource.matchingSentences[0].sentence, query)
+      if (!excerpt) return {
+        answer: 'Encontré un registro relacionado, pero no pude sintetizarlo de forma confiable. ¿Qué dato específico necesitas?',
+        confidence: 0.2,
+        evidence: [sourceTitle.slice(0, 290)],
+        fallback: true,
       }
       return {
-        answer: cleanDirectAnswer(excerpt, query),
+        answer: excerpt,
         confidence: 0.62,
         evidence: [sourceTitle.slice(0, 290)],
         fallback: true,
