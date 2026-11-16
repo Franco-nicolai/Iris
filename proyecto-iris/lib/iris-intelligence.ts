@@ -430,7 +430,7 @@ export async function analyzeMeetingForIntervention(meetingId: string, userId: s
 }
 
 function asksCurrentMeetingMinutes(query: string) {
-  return /\b(?:minuta|agenda)\b/i.test(query)
+  return /\b(?:minuta|agenda)\b/i.test(query) && !explicitlyAsksAboutPastMeetings(query)
 }
 
 function asksVentanaSource(query: string) {
@@ -442,12 +442,12 @@ function asksIrisMemorySource(query: string) {
 }
 
 function asksMeetingObjective(query: string) {
-  return /\bobjetivo\b/i.test(query) && !/\b(?:ventana\s+celeste|memoria|proyecto|iniciativa)\b/i.test(query)
+  return /\bobjetivo\b/i.test(query) && !explicitlyAsksAboutPastMeetings(query) && !/\b(?:ventana\s+celeste|memoria|proyecto|iniciativa)\b/i.test(query)
 }
 
 function asksCurrentMeetingTasks(query: string) {
   return /\b(?:tareas?|pendientes?|acciones\s+pendientes)\b/i.test(query) &&
-    !/\b(?:ventana\s+celeste|memoria|base\s+de\s+conocimiento|reuni[oó]n\s+(?:anterior|pasada|previa)|anteriormente)\b/i.test(query)
+    !/\b(?:ventana\s+celeste|memoria|base\s+de\s+conocimiento|reuni[oó]n\s+(?:anterior|pasada|previa)|anteriormente|previamente)\b/i.test(query)
 }
 
 function explicitlyAsksAboutPastMeetings(query: string) {
