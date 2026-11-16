@@ -106,6 +106,8 @@ export function IrisWorkspace({ user, meetings: initialMeetings }: { user: { nam
     presentationTimerRef.current = presentationInspectionMode ? null : setTimeout(() => clearPresentation('timeout'), level === 1 ? 4500 : level === 2 ? 7000 : 10000)
   }
   const [irisMuted, setIrisMuted] = useState(false)
+  const [speechOutputError, setSpeechOutputError] = useState('')
+  const [speechOutputReady, setSpeechOutputReady] = useState(false)
   const [policyResult, setPolicyResult] = useState<InterventionPolicyResult | null>(null)
   const [lastAnalysisAt, setLastAnalysisAt] = useState<number | null>(null)
   const [newSegmentCount, setNewSegmentCount] = useState(0)
@@ -143,6 +145,7 @@ export function IrisWorkspace({ user, meetings: initialMeetings }: { user: { nam
   const directInvocationIdsRef = useRef(new Set<string>())
   const directInvocationAbortRef = useRef<AbortController | null>(null)
   const irisMutedRef = useRef(irisMuted)
+  const speechOutputReadyRef = useRef(false)
   const recentFinalSpeechRef = useRef<Array<{ text: string; at: number }>>([])
   const pendingDirectWakeRef = useRef<{ startedAt: number; segmentId: string } | null>(null)
   const followUpTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
@@ -189,6 +192,31 @@ export function IrisWorkspace({ user, meetings: initialMeetings }: { user: { nam
   useEffect(() => { try { const saved = JSON.parse(localStorage.getItem('iris-preferences') || '{}') as { interventionIntensity?: 'low' | 'medium' | 'high'; irisMuted?: boolean }; if (saved.interventionIntensity) setInterventionIntensity(saved.interventionIntensity); if (typeof saved.irisMuted === 'boolean') setIrisMuted(saved.irisMuted) } catch {} }, [])
   useEffect(() => { try { localStorage.setItem('iris-preferences', JSON.stringify({ interventionIntensity, irisMuted })) } catch {} }, [interventionIntensity, irisMuted])
   useEffect(() => { irisMutedRef.current = irisMuted; if (irisMuted) window.speechSynthesis?.cancel() }, [irisMuted])
+  function handleSpeechStart() {
+    speechOutputReadyRef.current = true
+    setSpeechOutputReady(true)
+    setSpeechOutputError('')
+  }
+  function handleSpeechError(error: string) {
+    speechOutputReadyRef.current = false
+    setSpeechOutputReady(false)
+    setSpeechOutputError(error === 'not-allowed' || error === 'service-not-allowed'
+      ? 'El dispositivo bloqueó la voz. Toca “Probar voz” para habilitarla y revisa el modo silencioso.'
+      : 'No se pudo reproducir la voz. Toca “Probar voz” y revisa el volumen del dispositivo.')
+    console.warn('[iris] speech synthesis playback failed', { error })
+  }
+  function speakIris(content: string, onStart?: () => void) {
+    const queued = queueIrisSpeechChunk(content, {
+      onStart: () => { handleSpeechStart(); onStart?.() },
+      onError: handleSpeechError,
+    })
+    if (!queued) handleSpeechError('speech_unavailable')
+    return queued
+  }
+  function activateIrisSpeech(force = false) {
+    if (force) window.speechSynthesis?.cancel()
+    if (!irisMutedRef.current && (force || !speechOutputReadyRef.current)) speakIris('Iris está lista. La voz funciona en este dispositivo.')
+  }
   const selected = meetings.find((meeting) => meeting.id === selectedId)
   const readSourceRefs = (marker: string) => [...new Set(data.interventions.flatMap((item) => { const start = item.reason.indexOf(marker); return start < 0 ? [] : item.reason.slice(start + marker.length).split(' | ').map((source) => source.trim()).filter(Boolean) }))]
   const legacyCitations = data.interventions.flatMap((item) => {
@@ -650,7 +678,7 @@ export function IrisWorkspace({ user, meetings: initialMeetings }: { user: { nam
     const directText = text.trim()
     if (isIsolatedIrisWakeWord(directText)) {
       pendingDirectWakeRef.current = { startedAt: now, segmentId }
-      if (!irisMutedRef.current) { window.speechSynthesis?.cancel(); queueIrisSpeechChunk('Sí, dime.') }
+      if (!irisMutedRef.current) { window.speechSynthesis?.cancel(); speakIris('Sí, dime.') }
       return
     }
     let mode: 'single_segment' | 'multi_segment' = 'single_segment'
@@ -682,7 +710,7 @@ export function IrisWorkspace({ user, meetings: initialMeetings }: { user: { nam
     const previousExchange = followUpValid && followUp ? { user: followUp.user, iris: followUp.iris } : undefined
     setIrisVisualState(irisMutedRef.current ? 'muted' : 'analyzing')
     addDiagnosticEvent(`DIRECT INVOCATION detected: ${resolvedInvocation.query}`)
-    if (!irisMutedRef.current) { window.speechSynthesis?.cancel(); queueIrisSpeechChunk('Ya lo reviso.') }
+    if (!irisMutedRef.current) { window.speechSynthesis?.cancel(); speakIris('Ya lo reviso.') }
     const receiveStreamBlock = (block: string) => {
       const dataLine = block.split('\n').find((line) => line.startsWith('data:'))
       if (!dataLine) return
@@ -724,7 +752,7 @@ export function IrisWorkspace({ user, meetings: initialMeetings }: { user: { nam
         clearPresentation('replaced')
         setLiveAnalysisError(message)
         setIrisVisualState(irisMutedRef.current ? 'muted' : 'listening')
-        if (!irisMutedRef.current) { window.speechSynthesis?.cancel(); queueIrisSpeechChunk(message) }
+        if (!irisMutedRef.current) { window.speechSynthesis?.cancel(); speakIris(message) }
         addDiagnosticEvent('DIRECT ANSWER fallback had no matching evidence')
         return
       }
@@ -738,9 +766,9 @@ export function IrisWorkspace({ user, meetings: initialMeetings }: { user: { nam
       window.setTimeout(() => {
         if (requestController.signal.aborted) return
         presentIntervention('direct', suggestion, 'interventionLevel3')
-        if (!irisMutedRef.current) queueIrisSpeechChunk(finalResponse.answer)
+        if (!irisMutedRef.current) speakIris(finalResponse.answer, () => setDirectInvocation((current) => ({ ...current, spoken: true })))
       }, 1300)
-      setDirectInvocation({ query: resolvedInvocation.query, status: 'success', latencyMs: responseLatency, answer: finalResponse.answer, spoken: !irisMutedRef.current, presented: true })
+      setDirectInvocation({ query: resolvedInvocation.query, status: 'success', latencyMs: responseLatency, answer: finalResponse.answer, spoken: false, presented: true })
       armFollowUp(resolvedInvocation.query, finalResponse.answer)
       addDiagnosticEvent(`DIRECT ANSWER ${sourceBackedFallback ? 'source excerpt' : 'model'} presented level=2 → 3 spoken=${!irisMutedRef.current}`)
       if (process.env.NODE_ENV !== 'production') console.log('[v0] DIRECT_STREAM_METRICS', { latencyMs: responseLatency, timeToFirstTextMs: firstDeltaAt ? firstDeltaAt - startedAt : null, mode: followUpValid ? 'follow_up' : mode })
@@ -750,7 +778,7 @@ export function IrisWorkspace({ user, meetings: initialMeetings }: { user: { nam
       setDirectInvocation({ query: resolvedInvocation.query, status: 'error', latencyMs: Date.now() - startedAt, answer: '', spoken: false, presented: false })
       setIrisVisualState(irisMutedRef.current ? 'muted' : 'listening')
       window.speechSynthesis?.cancel()
-      if (!irisMutedRef.current) queueIrisSpeechChunk('No pude completar la respuesta. Inténtalo de nuevo.')
+      if (!irisMutedRef.current) speakIris('No pude completar la respuesta. Inténtalo de nuevo.')
       addDiagnosticEvent(`DIRECT ANSWER error: ${error instanceof Error ? error.message : 'unknown error'}`)
     } finally {
       if (directInvocationAbortRef.current === requestController) directInvocationAbortRef.current = null
@@ -758,6 +786,7 @@ export function IrisWorkspace({ user, meetings: initialMeetings }: { user: { nam
   }
   async function start() {
     if (pending || speechRef.current) return
+    activateIrisSpeech()
     setInterventionDiagnostic((current) => ({ ...current, status: 'enabled' })); setLiveAnalysisError(''); setLastAnalysisAt(null); lastAnalyzedSegmentIdRef.current = null; autoAnalysisInFlightRef.current = false
     setPending(true); setAudioError(''); setSession('connecting')
     let meetingId = activeMeetingIdRef.current ?? selectedId
@@ -798,11 +827,11 @@ export function IrisWorkspace({ user, meetings: initialMeetings }: { user: { nam
   return <main className={`iris-shell ${workspaceOpen ? 'workspace-open' : ''} ${selectedId ? 'has-selection' : 'no-selection'} ${workspaceOpen && workspaceTab === 'settings' ? 'settings-open' : ''} ${selected?.status === 'scheduled' ? 'meeting-scheduled' : ''} ${selected?.status === 'live' ? 'meeting-live' : ''} ${selected?.status === 'ended' ? 'meeting-ended' : ''}`} data-workspace-tab={workspaceTab}>{process.env.NODE_ENV !== 'production' && !workspaceOpen && presentationInspectionMode && activePresentation && <div className="debug-presentation-badge">DEBUG PRESENTATION<br />N{activePresentation.level} · {activePresentation.visualState}<br />ACTIVE</div>}
     <header className="topbar"><div className="brand-lockup"><div className="brand-mark">i</div><span>Iris</span></div><nav className="top-nav" aria-label="Navegación principal"><button className="new-meeting-nav" type="button" onClick={openNewMeetingSetup} disabled={session === 'listening' || session === 'connecting' || session === 'paused' || session === 'analyzing' || selected?.status === 'live'}><Plus size={14} aria-hidden="true" /> Nueva reunión</button><button className={`pepper-mode-nav ${pepperGhostOpen ? 'active' : ''}`} type="button" onClick={openPyramidMode} aria-label="Abrir modo Pirámide"><Sparkles size={13} aria-hidden="true" /> Modo Pirámide</button><button className={`workspace-nav ${workspaceOpen && workspaceTab !== 'settings' ? 'active' : ''}`} onClick={() => { setWorkspaceOpen(true); setWorkspaceTab('summary') }} type="button">Workspace</button><button className={workspaceOpen && workspaceTab === 'settings' ? 'active' : ''} onClick={() => { setWorkspaceOpen(true); setWorkspaceTab('settings') }} type="button">Configuración</button>{!workspaceOpen && activePresentation && <span className="presentation-nav-badge" role="status" aria-live="polite">Interacción activa · N{activePresentation.level}</span>}</nav><div className="top-actions account-wrap"><button className="account-button" onClick={() => setAccountOpen((open) => !open)} type="button" aria-expanded={accountOpen} aria-haspopup="menu"><span className="account-avatar">{(user.name || user.email).charAt(0).toUpperCase()}</span><span className="account-label">{user.name || 'Cuenta'}</span></button>{accountOpen && <div className="account-menu" role="menu"><strong>Cuenta</strong><span>{user.email}</span><button className="account-logout" type="button" role="menuitem" onClick={logout}><LogOut size={14} /> Cerrar sesión</button></div>}</div></header>
     <div className="meeting-history"><span className="eyebrow">HISTORIAL</span>{meetings.length === 0 ? <span className="history-empty">Todavía no hay reuniones guardadas.</span> : meetings.map((meeting) => <div className={`history-item-row ${selectedId === meeting.id ? 'active' : ''}`} key={meeting.id}><button className="history-item" onClick={() => { setSelectedId(meeting.id); setSession(meeting.status === 'ended' ? 'ended' : 'idle'); setWorkspaceTab('summary'); if (meeting.status === 'scheduled') { setNewMeetingForm({ title: meeting.title, objective: '', contextNotes: '', agenda: '' }); setNewMeetingOpen(true); setWorkspaceOpen(false) } }}>{meeting.title}</button><button className="history-menu-button" type="button" aria-label={`Eliminar reunión ${meeting.title}`} title="Eliminar reunión" onClick={() => void removeMeeting(meeting.id)} disabled={pending}><Trash2 size={16} /></button></div>)}</div>
-    <IrisPresentation activePresentation={!workspaceOpen ? activePresentation : null} irisVisualState={irisVisualState} muted={irisMuted} speechContent={pyramidState.speechContent ?? undefined} speakEnabled={activePresentation?.source !== 'direct'} renderContent={!pepperGhostOpen} workspaceOpen={workspaceOpen} ambientModeVisible={!workspaceOpen} />
+    <IrisPresentation activePresentation={!workspaceOpen ? activePresentation : null} irisVisualState={irisVisualState} muted={irisMuted} speechContent={pyramidState.speechContent ?? undefined} speakEnabled={activePresentation?.source !== 'direct'} renderContent={!pepperGhostOpen} workspaceOpen={workspaceOpen} ambientModeVisible={!workspaceOpen} onSpeechStart={handleSpeechStart} onSpeechError={handleSpeechError} />
     {pepperGhostOpen && <IrisPepperGhost activePresentation={activePresentation} muted={irisMuted} onClose={() => setPepperGhostOpen(false)} />}
     <div className="workspace-main">
     {(!workspaceOpen || workspaceTab === 'summary') && <div className="workspace"><div className="workspace-context" style={{ display: workspaceOpen ? 'flex' : 'none' }}><label htmlFor="meeting-selector">Reunión</label><select id="meeting-selector" value={selectedId ?? ''} onChange={(event) => { setSelectedId(event.target.value || null); setSession('idle'); setWorkspaceTab('summary') }}><option value="">Selecciona una reunión</option>{meetings.map((meeting) => <option key={meeting.id} value={meeting.id}>{meeting.title} · {formatMeetingDate(meeting.startedAt)}</option>)}</select>{selected && <span>{selected.status === 'ended' ? 'Finalizada' : selected.status === 'live' ? 'En curso' : 'Lista'}</span>}</div><section className="hero-column" aria-label="Estado de la sesión"><div className="hero-kicker" aria-live="polite"><span className={`state-dot ${status.tone}`} />{status.detail}</div>{liveAnalysisError && <p className="live-analysis-error" role="status">{liveAnalysisError}</p>}{session !== 'listening' && session !== 'paused' && session !== 'connecting' && session !== 'analyzing' && selected?.status !== 'live' && <section className="premeeting-card"><span className="eyebrow">PREPARAR REUNIÓN</span><h1>{selected?.title || 'Nueva reunión'}</h1>{selected && <><p>{data.meeting?.objective || 'Configura el objetivo, contexto y agenda antes de comenzar.'}</p>{data.agenda.length > 0 && <div className="premeeting-agenda"><span className="eyebrow">AGENDA</span>{data.agenda.slice().sort((a, b) => a.position - b.position).map((item, index) => <div key={item.id}>{index + 1}. {item.title}</div>)}</div>}</>}<div className="premeeting-actions"><button className="primary-button" type="button" onClick={() => setNewMeetingOpen(true)}>{selected ? 'Configurar reunión' : 'Nueva reunión'}</button>{selected && <><button className="secondary-button" type="button" onClick={() => { setNewMeetingForm({ title: selected.title, objective: data.meeting?.objective || '', contextNotes: data.meeting?.contextNotes || '', agenda: data.agenda.slice().sort((a, b) => a.position - b.position).map((item) => item.title).join('\n') }); setNewMeetingOpen(true) }}>Editar</button><button className="secondary-button" type="button" onClick={() => void start()}><Play size={14} /> Iniciar reunión</button></>}</div></section>}
-<div className={`orb-stage ${irisVisualState}`} data-visual-state={irisVisualState}><div className="live-caption-stack" aria-live="polite">{liveCaption && <p className="live-caption">{liveCaption}</p>}{followUpMode && <p className="live-caption">Puedes seguir preguntando</p>}</div><IrisOrbVisual className="home-orb-visual" />{session === 'listening' && <div className="sound-lines"><i /><i /><i /><i /><i /></div>}</div><div className="agenda-live-summary">{activeAgenda ? `${agendaIndex} de ${data.agenda.length} · ${activeAgenda.title}` : data.meeting?.objective || 'Sin objetivo definido'}</div><div className="status-copy"><h1>{status.label}</h1><p>{audioError || (session === 'idle' ? '' : session === 'ended' ? 'Reunión persistida. Puedes revisar sus acuerdos.' : session === 'paused' ? 'Reanuda cuando quieras. Nada se procesa mientras está pausada.' : session === 'connecting' ? 'Preparando una sesión segura de transcripción.' : session === 'error' ? 'La captura no está activa.' : 'Transcripción progresiva en español. El audio no se almacena.')}</p></div><div className="ambient-actions"><button className="sheet-trigger" type="button" onClick={() => { setWorkspaceOpen(true); setWorkspaceTab('summary') }}><FileText size={15} /> Workspace</button>{session === 'ended' && <details className="export-menu"><summary>Exportar</summary><button type="button" onClick={() => exportMeeting('transcript')}>Transcripción</button><button type="button" onClick={() => exportMeeting('summary')}>Resumen</button><button type="button" onClick={() => exportMeeting('all')}>Todo</button></details>}<button className={`sheet-trigger ${irisMuted ? 'selected' : ''}`} type="button" onClick={() => setIrisMuted((value) => !value)} aria-pressed={irisMuted}>{irisMuted ? 'Activar Iris' : 'Silenciar Iris'}</button></div><div className="session-controls">{session === 'idle' || session === 'ended' ? <button className="primary-button" onClick={start} disabled={pending}><Play size={16} fill="currentColor" /> {pending ? 'Guardando…' : session === 'ended' ? 'Nueva sesión' : 'Iniciar sesión'}</button> : <button className="primary-button" onClick={() => { if (session === 'paused') { void start() } else { stopAudio('manual'); setSession('paused') } }}><>{session === 'paused' ? <Play size={16} fill="currentColor" /> : <Pause size={16} fill="currentColor" />} {session === 'paused' ? 'Reanudar' : 'Pausar'}</></button>}{session !== 'idle' && session !== 'ended' && <button className="secondary-button finish-meeting-button" onClick={finish} disabled={pending}><Square size={14} fill="currentColor" /> Finalizar reunión</button>}</div></section>
+<div className={`orb-stage ${irisVisualState}`} data-visual-state={irisVisualState}><div className="live-caption-stack" aria-live="polite">{liveCaption && <p className="live-caption">{liveCaption}</p>}{followUpMode && <p className="live-caption">Puedes seguir preguntando</p>}</div><IrisOrbVisual className="home-orb-visual" />{session === 'listening' && <div className="sound-lines"><i /><i /><i /><i /><i /></div>}</div><div className="agenda-live-summary">{activeAgenda ? `${agendaIndex} de ${data.agenda.length} · ${activeAgenda.title}` : data.meeting?.objective || 'Sin objetivo definido'}</div><div className="status-copy"><h1>{status.label}</h1><p>{audioError || speechOutputError || (session === 'idle' ? '' : session === 'ended' ? 'Reunión persistida. Puedes revisar sus acuerdos.' : session === 'paused' ? 'Reanuda cuando quieras. Nada se procesa mientras está pausada.' : session === 'connecting' ? 'Preparando una sesión segura de transcripción.' : session === 'error' ? 'La captura no está activa.' : 'Transcripción progresiva en español. El audio no se almacena.')}</p></div><div className="ambient-actions"><button className="sheet-trigger" type="button" onClick={() => { setWorkspaceOpen(true); setWorkspaceTab('summary') }}><FileText size={15} /> Workspace</button>{session === 'ended' && <details className="export-menu"><summary>Exportar</summary><button type="button" onClick={() => exportMeeting('transcript')}>Transcripción</button><button type="button" onClick={() => exportMeeting('summary')}>Resumen</button><button type="button" onClick={() => exportMeeting('all')}>Todo</button></details>}{!irisMuted && <button className="sheet-trigger" type="button" onClick={() => activateIrisSpeech(true)}>{speechOutputReady ? 'Probar voz' : 'Activar voz'}</button>}<button className={`sheet-trigger ${irisMuted ? 'selected' : ''}`} type="button" onClick={() => setIrisMuted((value) => !value)} aria-pressed={irisMuted}>{irisMuted ? 'Activar Iris' : 'Silenciar Iris'}</button></div><div className="session-controls">{session === 'idle' || session === 'ended' ? <button className="primary-button" onClick={start} disabled={pending}><Play size={16} fill="currentColor" /> {pending ? 'Guardando…' : session === 'ended' ? 'Nueva sesión' : 'Iniciar sesión'}</button> : <button className="primary-button" onClick={() => { if (session === 'paused') { void start() } else { stopAudio('manual'); setSession('paused') } }}><>{session === 'paused' ? <Play size={16} fill="currentColor" /> : <Pause size={16} fill="currentColor" />} {session === 'paused' ? 'Reanudar' : 'Pausar'}</></button>}{session !== 'idle' && session !== 'ended' && <button className="secondary-button finish-meeting-button" onClick={finish} disabled={pending}><Square size={14} fill="currentColor" /> Finalizar reunión</button>}</div></section>
     {workspaceOpen && workspaceTab === 'summary' && !selected && <section className="workspace-empty panel"><span className="eyebrow">INFORMES</span><h1>Selecciona una reunión</h1><p>El informe reúne la minuta, el contexto, las interacciones de Iris y la transcripción completa.</p></section>}
     {workspaceOpen && workspaceTab === 'summary' && selected && globalEditMode && <section className="workspace-global-editor"><header><div><span className="eyebrow">EDICIÓN</span><h1>Editar informe</h1></div><span>{selected.title}</span></header><label>Nombre de la reunión<input value={globalDraft.title} onChange={(event) => setGlobalDraft((draft) => ({ ...draft, title: event.target.value }))} /></label><label>Objetivo<textarea value={globalDraft.objective} onChange={(event) => setGlobalDraft((draft) => ({ ...draft, objective: event.target.value }))} /></label><label>Contexto previo<textarea value={globalDraft.contextNotes} onChange={(event) => setGlobalDraft((draft) => ({ ...draft, contextNotes: event.target.value }))} /></label><label>Resumen ejecutivo<textarea value={globalDraft.summary} onChange={(event) => setGlobalDraft((draft) => ({ ...draft, summary: event.target.value }))} /></label><label>Minuta / puntos<textarea value={globalDraft.agenda} onChange={(event) => setGlobalDraft((draft) => ({ ...draft, agenda: event.target.value }))} /></label><label>Decisiones<textarea value={globalDraft.decisions} onChange={(event) => setGlobalDraft((draft) => ({ ...draft, decisions: event.target.value }))} /></label><label>Tareas<textarea value={globalDraft.tasks} onChange={(event) => setGlobalDraft((draft) => ({ ...draft, tasks: event.target.value }))} /></label><footer><button className="secondary-button" type="button" onClick={() => setGlobalEditMode(false)}>Volver al informe</button><button className="primary-button" type="button" disabled={pending} onClick={() => void saveGlobalEdits()}>{pending ? 'Guardando…' : 'Guardar informe'}</button></footer></section>}
     {workspaceOpen && workspaceTab === 'summary' && selected && !globalEditMode && <article className="workspace-inline-document meeting-report">
